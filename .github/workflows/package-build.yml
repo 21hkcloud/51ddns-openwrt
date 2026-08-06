@@ -32,6 +32,14 @@ jobs:
           BUILD_LOG: 1
           PACKAGES: 51ddns-agent luci-app-51ddns
           V: s
+      - name: Upload OpenWrt packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-${{ matrix.arch }}
+          path: |
+            bin/**/*.apk
+            bin/**/*.ipk
+          if-no-files-found: error
 
   immortalwrt:
     name: ImmortalWrt / ${{ matrix.arch }}
@@ -55,3 +63,11 @@ jobs:
           BUILD_LOG: 1
           PACKAGES: 51ddns-agent luci-app-51ddns
           V: s
+      - name: Upload ImmortalWrt packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: immortalwrt-${{ matrix.arch }}
+          path: |
+            bin/**/*.apk
+            bin/**/*.ipk
+          if-no-files-found: error
