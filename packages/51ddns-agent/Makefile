@@ -33,7 +33,7 @@ define Package/51ddns-agent
   SUBMENU:=VPN
   TITLE:=Client for the 51DDNS remote access cloud
   URL:=https://github.com/21hkcloud/51ddns-openwrt
-  DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle +frpc
+  DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle +frpc +procd-ujail
   USERID:=ddns51:ddns51
 endef
 
@@ -57,6 +57,8 @@ define Package/51ddns-agent/install
 	$(INSTALL_DIR) $(1)/usr/libexec
 	$(INSTALL_BIN) ./files/51ddns-agent-start $(1)/usr/libexec/51ddns-agent-start
 	$(INSTALL_DIR) $(1)/etc/51ddns
+	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
+	$(INSTALL_DATA) ./files/51ddns-agent.upgrade $(1)/lib/upgrade/keep.d/51ddns-agent
 endef
 
 $(eval $(call BuildPackage,51ddns-agent))

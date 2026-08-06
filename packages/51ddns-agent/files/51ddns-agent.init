@@ -17,7 +17,7 @@ start_service() {
 	local go_memory_limit
 
 	config_load 51ddns
-	uci_validate_section 51ddns agent main \
+	if ! uci_validate_section 51ddns agent main \
 		'enabled:bool:0' \
 		'control_url:string:https://api.51ddns.com' \
 		'account_token:string' \
@@ -25,7 +25,10 @@ start_service() {
 		'refresh_seconds:uinteger:30' \
 		'start_delay_seconds:uinteger:0' \
 		'max_active_relays:uinteger:0' \
-		'oem_voucher_file:string:/etc/51ddns/oem.voucher'
+		'oem_voucher_file:string:/etc/51ddns/oem.voucher'; then
+		logger -t 51ddns-agent "invalid configuration; service not started"
+		return 1
+	fi
 
 	[ "$enabled" -eq 1 ] || return 0
 	if [ -z "$account_token" ]; then
@@ -80,13 +83,18 @@ start_service() {
 	procd_set_param no_new_privs 1
 	procd_set_param file /etc/config/51ddns
 
-	procd_add_jail 51ddns-agent log
+	procd_add_jail 51ddns-agent log requirejail
 	procd_add_jail_mount /etc/hosts
 	procd_add_jail_mount /etc/resolv.conf
 	procd_add_jail_mount /etc/ssl/certs
 	procd_add_jail_mount /etc/TZ
 	procd_add_jail_mount /etc/openwrt_release
+	procd_add_jail_mount /usr/bin/frpc
 	procd_add_jail_mount_rw "$SECRET_DIR"
 	procd_add_jail_mount_rw "$RUNTIME_DIR"
 	procd_close_instance
+}
+
+service_triggers() {
+	procd_add_reload_trigger 51ddns
 }
