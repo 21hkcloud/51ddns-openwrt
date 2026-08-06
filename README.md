@@ -1,30 +1,67 @@
-# 51DDNS for OpenWrt
+# 51DDNS client for OpenWrt
 
-51DDNS OpenWrt 客户端用于将路由器安全接入 51DDNS 自建控制平面，提供 HTTP/HTTPS 内网穿透、SSH 等远程应用、远程桌面、文件管理和动态 DNS 能力。
+This repository contains the open-source OpenWrt client for the commercial,
+vendor-hosted 51DDNS remote-access service. The client connects to
+`https://api.51ddns.com`; the 51DDNS control plane is not included in this
+repository and cannot currently be self-hosted.
 
-## 软件包
+## What the client does
 
-- `51ddns-agent`：由 OpenWrt 构建系统从本仓库 Go 源码编译的原生 `procd` 服务；使用官方软件源中的 `frpc` 建立隧道。
-- `luci-app-51ddns`：位于“服务 → 51DDNS 远程控制”的 LuCI 管理页面。
+After an administrator enters a 51DDNS account token, the agent:
 
-用户只需在 LuCI 页面填写从 51DDNS 控制台复制的统一账户令牌。客户端会自动创建独立设备 ID，并将令牌保存到权限为 `0600` 的本地文件中，不会把令牌放入进程命令行。
+1. creates or restores a stable local installation identifier;
+2. registers the router with the 51DDNS control plane;
+3. reports basic device and public-address status;
+4. downloads the FRP relay configuration assigned to that device; and
+5. starts the OpenWrt `frpc` package as an outbound tunnel client.
 
-## 从源码构建
+This trust model matters: the operator of `api.51ddns.com` supplies the FRP
+configuration used by the agent and therefore controls which relay endpoints
+the client connects to. Only install and enable this package if you trust the
+51DDNS service operator. Disable the service or remove the package to stop all
+51DDNS-managed tunnels.
 
-将 `packages/51ddns-agent` 和 `luci-app-51ddns` 放入 OpenWrt SDK 或源码树的 `package/` 目录，然后按 OpenWrt 标准方式构建。Agent 使用 OpenWrt `golang-package.mk` 交叉编译，不下载 51DDNS 预编译可执行文件。
+The OpenWrt package runs the agent and its `frpc` children as a dedicated,
+unprivileged `51ddns` user inside a procd/ujail sandbox. Persistent credentials
+are stored in `/etc/51ddns` with restricted permissions. Runtime-generated FRP
+configuration is stored in the temporary `/var/lib/51ddns` directory and is
+re-created after reboot.
+
+## Packages
+
+- `packages/51ddns-agent`: Go agent built from this source by the OpenWrt build
+  system. It depends on the feed-provided `frpc` package and does not download a
+  precompiled 51DDNS executable.
+- `luci-app-51ddns`: LuCI page under **Services → 51DDNS Remote Access**.
+
+## Build from source
+
+Copy `packages/51ddns-agent` and `luci-app-51ddns` into an OpenWrt SDK or source
+tree under `package/`, then build them normally:
 
 ```sh
 make package/51ddns-agent/compile V=s
 make package/luci-app-51ddns/compile V=s
 ```
 
-运行时的 FRP 客户端由 OpenWrt/ImmortalWrt 官方 `frpc` 软件包提供。
+## Data and privacy
 
-## 相关链接
+The client sends the account/device credential, installation and device
+identifiers, platform and agent version, public IP address, operational status,
+and tunnel configuration metadata needed to provide the service. It does not
+scan or upload arbitrary files from the router. Traffic content visible to a
+relay depends on the protocol selected by the user; use end-to-end encrypted
+protocols such as HTTPS and SSH whenever possible.
 
-- 官网：https://www.51ddns.com/
-- 用户控制台：https://console.51ddns.com/
-- 隐私说明：[PRIVACY.md](PRIVACY.md)
-- 许可证：[Apache-2.0](LICENSE)
+See [PRIVACY.md](PRIVACY.md) for the English client privacy notice.
 
-本仓库的 Apache-2.0 授权只适用于 51DDNS OpenWrt 客户端源代码与打包文件，不包含 51DDNS 控制平面、计费系统、管理后台或合作伙伴系统。
+## Links
+
+- Service website: https://www.51ddns.com/
+- User console: https://console.51ddns.com/
+- Support and data requests: info@51ddns.com
+- Client license: [Apache-2.0](LICENSE)
+
+The Apache-2.0 license applies to the client source and packaging files in this
+repository. It does not cover the 51DDNS control plane, billing system,
+administration console, or partner portal.

@@ -4,7 +4,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=51ddns-agent
-PKG_VERSION:=0.6.1
+PKG_VERSION:=0.6.2
 PKG_RELEASE:=1
 
 PKG_SOURCE:=51ddns-openwrt-$(PKG_VERSION).tar.gz
@@ -12,7 +12,7 @@ PKG_SOURCE_URL:=https://codeload.github.com/21hkcloud/51ddns-openwrt/tar.gz/v$(P
 PKG_HASH:=59e8c4f6606ec2403fb4f144f555766f79c16a7f078847c1da4e9ed5d8886951
 PKG_BUILD_DIR:=$(BUILD_DIR)/51ddns-openwrt-$(PKG_VERSION)
 
-PKG_MAINTAINER:=51DDNS <support@51ddns.com>
+PKG_MAINTAINER:=Jinshuan Wang <21hkcloud@gmail.com>
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
 
@@ -31,25 +31,20 @@ define Package/51ddns-agent
   SECTION:=net
   CATEGORY:=Network
   SUBMENU:=VPN
-  TITLE:=51DDNS remote access agent
-  URL:=https://www.51ddns.com/
+  TITLE:=Client for the 51DDNS remote access cloud
+  URL:=https://github.com/21hkcloud/51ddns-openwrt
   DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle +frpc
+  USERID:=51ddns:51ddns
 endef
 
 define Package/51ddns-agent/description
- Securely connects an OpenWrt device to the self-hosted 51DDNS control plane.
+  Client for the vendor-hosted 51DDNS remote access service. It contacts
+  api.51ddns.com and starts feed-provided frpc processes from authenticated
+  tunnel configurations assigned through the user's 51DDNS account.
 endef
 
 define Package/51ddns-agent/conffiles
 /etc/config/51ddns
-endef
-
-define Package/51ddns-agent/postinst
-#!/bin/sh
-[ -n "$${IPKG_INSTROOT}" ] && exit 0
-/etc/init.d/51ddns-agent enable >/dev/null 2>&1 || true
-/etc/init.d/51ddns-agent restart >/dev/null 2>&1 || true
-exit 0
 endef
 
 define Package/51ddns-agent/install
@@ -61,7 +56,7 @@ define Package/51ddns-agent/install
 	$(INSTALL_BIN) ./files/51ddns-agent.init $(1)/etc/init.d/51ddns-agent
 	$(INSTALL_DIR) $(1)/usr/libexec
 	$(INSTALL_BIN) ./files/51ddns-agent-start $(1)/usr/libexec/51ddns-agent-start
-	$(INSTALL_DIR) $(1)/etc/51ddns $(1)/var/lib/51ddns
+	$(INSTALL_DIR) $(1)/etc/51ddns
 endef
 
 $(eval $(call BuildPackage,51ddns-agent))

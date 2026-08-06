@@ -1,13 +1,51 @@
-# 51DDNS OpenWrt 客户端隐私说明
+# 51DDNS OpenWrt client privacy notice
 
-更新时间：2026-08-05
+Last updated: 2026-08-06
 
-51DDNS OpenWrt 客户端只为设备接入、内网穿透、状态展示和用户主动配置的远程访问功能处理必要数据，包括账户令牌、随机设备标识、设备名称、客户端版本、在线状态、公网地址、套餐状态、用户配置的转发目标和运行诊断信息。
+This notice describes the data processed by the open-source 51DDNS OpenWrt
+client when it is connected to the commercial 51DDNS service operated by Shake
+Cloud Inc. The control plane is vendor-hosted at `api.51ddns.com` and is not part
+of this repository.
 
-- 账户令牌和设备凭据保存在路由器本地受限文件中，不写入进程命令行。
-- 远程连接凭据只在用户主动创建相关功能时处理，并按平台安全策略加密保存。
-- 客户端不会主动读取或上传路由器中的个人文件；文件管理只在用户配置并发起连接时访问指定服务。
-- 数据仅用于提供服务、故障排查、安全审计和防止滥用，不出售给第三方。
-- 用户可在 51DDNS 控制台停用或删除设备，也可通过 `info@51ddns.com` 联系我们处理账户及数据请求。
+## Data processed
 
-完整服务条款和隐私政策以 51DDNS 官方网站公布的版本为准。
+The client may send the following data to the 51DDNS control plane:
+
+- the account token and the device credential used to authenticate requests;
+- a random local installation identifier and the server-assigned device ID;
+- the device platform, agent version, online state, and public IP address;
+- the active plan and service capability status; and
+- tunnel and route metadata required to generate and operate the requested FRP
+  connections, plus limited diagnostics needed to troubleshoot failures.
+
+The agent does not scan or upload arbitrary personal files from the router.
+File-management, remote-desktop, SSH, and other remote-access connections are
+created only when configured by the account user. The confidentiality of the
+traffic carried through a tunnel depends on the selected application protocol;
+users should prefer end-to-end encrypted protocols such as HTTPS and SSH.
+
+## Remote configuration and trust
+
+The agent periodically retrieves FRP configuration from `api.51ddns.com`. The
+operator of that service can therefore select the relay endpoint and outbound
+tunnel configuration used by an authenticated device. Users should install and
+enable the client only if they trust the service operator. Stopping the
+`51ddns-agent` service or uninstalling the package stops the managed tunnels.
+
+## Local storage
+
+The account token, device ID, and installation ID are stored locally under
+`/etc/51ddns` with restricted permissions. Generated FRP configuration and
+non-sensitive status data are stored under `/var/lib/51ddns`, which is temporary
+on OpenWrt and is re-created after a reboot.
+
+## Purpose, disclosure, and requests
+
+The data is used to authenticate devices, provide remote-access features,
+maintain service reliability, investigate failures, perform security auditing,
+and prevent abuse. 51DDNS does not sell client telemetry as personal data. Data
+may be processed by infrastructure providers needed to operate the service or
+disclosed when required by law.
+
+Users can disable or delete a device in the 51DDNS console. Account, access, and
+data-deletion requests can be sent to `info@51ddns.com`.
