@@ -16,7 +16,6 @@ start_service() {
 	local start_delay_seconds max_active_relays oem_voucher_file
 	local go_memory_limit
 
-	config_load 51ddns
 	if ! uci_validate_section 51ddns agent main \
 		'enabled:bool:0' \
 		'control_url:string:https://api.51ddns.com' \
@@ -83,7 +82,7 @@ start_service() {
 	procd_set_param no_new_privs 1
 	procd_set_param file /etc/config/51ddns
 
-	procd_add_jail 51ddns-agent log requirejail
+	procd_add_jail 51ddns-agent log
 	procd_add_jail_mount /etc/hosts
 	procd_add_jail_mount /etc/resolv.conf
 	procd_add_jail_mount /etc/ssl/certs

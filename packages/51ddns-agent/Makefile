@@ -33,7 +33,7 @@ define Package/51ddns-agent
   SUBMENU:=VPN
   TITLE:=Client for the 51DDNS remote access cloud
   URL:=https://github.com/21hkcloud/51ddns-openwrt
-  DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle +frpc +procd-ujail
+  DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle +frpc
   USERID:=ddns51:ddns51
 endef
 
