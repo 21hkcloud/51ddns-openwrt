@@ -22,7 +22,7 @@ the client connects to. Only install and enable this package if you trust the
 51DDNS-managed tunnels.
 
 The OpenWrt package runs the agent and its `frpc` children as a dedicated,
-unprivileged `51ddns` user inside a procd/ujail sandbox. Persistent credentials
+unprivileged `ddns51` user inside a procd/ujail sandbox. Persistent credentials
 are stored in `/etc/51ddns` with restricted permissions. Runtime-generated FRP
 configuration is stored in the temporary `/var/lib/51ddns` directory and is
 re-created after reboot.

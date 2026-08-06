@@ -34,7 +34,7 @@ define Package/51ddns-agent
   TITLE:=Client for the 51DDNS remote access cloud
   URL:=https://github.com/21hkcloud/51ddns-openwrt
   DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle +frpc
-  USERID:=51ddns:51ddns
+  USERID:=ddns51:ddns51
 endef
 
 define Package/51ddns-agent/description
