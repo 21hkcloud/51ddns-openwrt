@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2026 51DDNS
+
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=51ddns-agent

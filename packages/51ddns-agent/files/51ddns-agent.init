@@ -58,7 +58,7 @@ start_agent_instance() {
 	esac
 
 	if [ -z "$account_token" ]; then
-		logger -t 51ddns-agent "未配置统一账户令牌，服务未启动"
+		logger -t 51ddns-agent "account token is not configured; service not started"
 		return 1
 	fi
 

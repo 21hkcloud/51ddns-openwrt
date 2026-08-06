@@ -9,7 +9,7 @@ case "$delay" in
 	''|*[!0-9]*) delay=0 ;;
 esac
 if [ "$delay" -gt 0 ]; then
-	logger -t 51ddns-agent "按配置延迟 ${delay} 秒启动"
+	logger -t 51ddns-agent "delaying startup by ${delay} seconds"
 	sleep "$delay"
 fi
 
