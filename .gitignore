@@ -1,0 +1,13 @@
+# Build products and private signing material
+*.ipk
+*.apk
+*.tar.gz
+*.pem
+*.key
+secrets/
+backups/
+firmware/
+bin/
+build_dir/
+staging_dir/
+tmp/
