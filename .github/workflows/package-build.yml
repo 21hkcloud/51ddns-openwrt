@@ -1,0 +1,55 @@
+name: Package build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  openwrt:
+    name: OpenWrt / ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - x86_64
+          - aarch64_cortex-a53
+          - mips_24kc
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build packages from source
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: ${{ matrix.arch }}
+          BUILD_LOG: 1
+          PACKAGES: 51ddns-agent luci-app-51ddns
+          V: s
+
+  immortalwrt:
+    name: ImmortalWrt / ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - x86_64
+          - aarch64_cortex-a53
+          - mips_24kc
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build packages from source
+        uses: immortalwrt/gh-action-sdk@master
+        env:
+          ARCH: ${{ matrix.arch }}
+          BUILD_LOG: 1
+          PACKAGES: 51ddns-agent luci-app-51ddns
+          V: s
