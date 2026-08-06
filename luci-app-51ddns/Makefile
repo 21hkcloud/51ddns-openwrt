@@ -3,7 +3,7 @@ include $(TOPDIR)/rules.mk
 LUCI_TITLE:=LuCI support for 51DDNS remote access
 LUCI_DEPENDS:=+luci-base +51ddns-agent
 LUCI_PKGARCH:=all
-PKG_VERSION:=0.1.3
+PKG_VERSION:=0.1.4
 PKG_RELEASE:=1
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=51DDNS <support@51ddns.com>

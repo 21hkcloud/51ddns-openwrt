@@ -81,7 +81,7 @@ return view.extend({
 		};
 
 		var version = section.option(form.DummyValue, '_version', '插件版本');
-		version.cfgvalue = function() { return '0.1.3 / Agent 0.5.3'; };
+		version.cfgvalue = function() { return '0.1.4 / Agent 0.6.0'; };
 
 		var planName = section.option(form.DummyValue, '_plan_name', '当前套餐');
 		planName.cfgvalue = function() { return plan ? plan.product_name : '暂无有效套餐'; };

@@ -80,7 +80,7 @@ start_agent_instance() {
 		--installation-id-file "$SECRET_DIR/install.id" \
 		--oem-voucher-file "$oem_voucher_file" \
 		--control-api-url "$control_url" \
-		--frpc-path /usr/bin/51ddns-frpc \
+		--frpc-path /usr/bin/frpc \
 		--config-path "$RUNTIME_DIR/frpc.toml"
 	procd_set_param env CONFIG_REFRESH_SECONDS="$refresh_seconds" \
 		MAX_ACTIVE_RELAYS="$max_active_relays" \
