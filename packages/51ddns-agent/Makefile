@@ -22,7 +22,7 @@ PKG_BUILD_FLAGS:=no-mips16
 
 GO_PKG:=github.com/21hkcloud/51ddns-openwrt
 GO_PKG_BUILD_PKG:=$(GO_PKG)/cmd/51ddns-agent
-GO_PKG_LDFLAGS_X:=$(GO_PKG)/cmd/51ddns-agent.agentVersion=$(PKG_VERSION)
+GO_PKG_LDFLAGS_X:=main.agentVersion=$(PKG_VERSION)
 
 include $(INCLUDE_DIR)/package.mk
 include $(TOPDIR)/feeds/packages/lang/golang/golang-package.mk
