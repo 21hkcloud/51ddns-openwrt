@@ -87,6 +87,10 @@ type agent struct {
 }
 
 func main() {
+	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-V") {
+		fmt.Printf("51ddns-agent %s\n", agentVersion)
+		return
+	}
 	service, err := load()
 	if err != nil {
 		slog.Error("agent configuration rejected", "error", err)

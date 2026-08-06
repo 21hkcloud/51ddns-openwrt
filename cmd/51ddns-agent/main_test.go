@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -9,6 +10,18 @@ import (
 	"path/filepath"
 	"testing"
 )
+
+func TestVersionIsInjectedAtBuildTime(t *testing.T) {
+	previous := agentVersion
+	agentVersion = "0.6.1"
+	t.Cleanup(func() { agentVersion = previous })
+
+	var output bytes.Buffer
+	output.WriteString("51ddns-agent " + agentVersion + "\n")
+	if output.String() != "51ddns-agent 0.6.1\n" {
+		t.Fatalf("unexpected version output: %q", output.String())
+	}
+}
 
 func TestFetchReturnsSortedRelayConfigurations(t *testing.T) {
 	statusPath := filepath.Join(t.TempDir(), "status.json")
