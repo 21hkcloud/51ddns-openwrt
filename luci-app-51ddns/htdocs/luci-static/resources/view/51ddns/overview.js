@@ -3,116 +3,139 @@
 'require form';
 'require rpc';
 'require uci';
-'require ui';
 
-var callServiceList = rpc.declare({
+const callServiceList = rpc.declare({
 	object: 'service',
 	method: 'list',
 	params: [ 'name' ],
-	expect: { '': {} }
+	expect: { '': {} },
 });
 
-var callLocalStatus = rpc.declare({
+const callLocalStatus = rpc.declare({
 	object: 'luci.51ddns',
 	method: 'status',
-	expect: { '': {} }
+	expect: { '': {} },
+});
+
+const callAgentInfo = rpc.declare({
+	object: 'luci.51ddns',
+	method: 'info',
+	expect: { '': {} },
 });
 
 function serviceState(data) {
-	var instances = data && data['51ddns-agent'] && data['51ddns-agent'].instances;
-	var names = instances ? Object.keys(instances) : [];
-	var running = names.some(function(name) { return instances[name] && instances[name].running; });
+	const instances = data?.['51ddns-agent']?.instances || {};
+	const running = Object.values(instances).some(instance => instance?.running);
+
 	return {
-		running: running,
-		label: running ? '已启动' : '未运行',
-		className: running ? 'alert-message success' : 'alert-message warning'
+		running,
+		label: running ? _('Running') : _('Not running'),
+		className: running ? 'alert-message success' : 'alert-message warning',
 	};
 }
 
 function formatDate(value) {
-	var date = new Date(value || '');
-	if (isNaN(date.getTime()))
-		return '同步中';
-	return date.toLocaleString('zh-CN', {
-		year: 'numeric', month: '2-digit', day: '2-digit',
-		hour: '2-digit', minute: '2-digit', hour12: false
+	const date = new Date(value || '');
+
+	if (Number.isNaN(date.getTime()))
+		return _('Synchronizing');
+
+	return date.toLocaleString([], {
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
 	});
 }
 
 function remainingState(value) {
-	var expires = new Date(value || '');
-	if (isNaN(expires.getTime()))
-		return { label: '同步中', className: 'alert-message notice' };
-	var milliseconds = expires.getTime() - Date.now();
+	const expires = new Date(value || '');
+
+	if (Number.isNaN(expires.getTime()))
+		return { label: _('Synchronizing'), className: 'alert-message notice' };
+
+	const milliseconds = expires.getTime() - Date.now();
 	if (milliseconds <= 0)
-		return { label: '已到期', className: 'alert-message error' };
-	var hours = Math.ceil(milliseconds / 3600000);
-	var label = hours > 48 ? ('约 ' + Math.ceil(hours / 24) + ' 天') : (hours + ' 小时');
+		return { label: _('Expired'), className: 'alert-message error' };
+
+	const hours = Math.ceil(milliseconds / 3600000);
+	const label = hours > 48
+		? _('About %d days').format(Math.ceil(hours / 24))
+		: _('%d hours').format(hours);
+
 	return {
-		label: label,
-		className: milliseconds <= 3 * 86400000 ? 'alert-message warning' : 'alert-message success'
+		label,
+		className: milliseconds <= 3 * 86400000
+			? 'alert-message warning'
+			: 'alert-message success',
 	};
 }
 
 return view.extend({
-	load: function() {
+	load() {
 		return Promise.all([
 			uci.load('51ddns'),
 			L.resolveDefault(callServiceList('51ddns-agent'), {}),
-			L.resolveDefault(callLocalStatus(), {})
+			L.resolveDefault(callLocalStatus(), {}),
+			L.resolveDefault(callAgentInfo(), {}),
 		]);
 	},
 
-	render: function(data) {
-		var state = serviceState(data[1]);
-		var local = data[2] || {};
-		var plan = local.plan || null;
-		var remaining = remainingState(plan && plan.expires_at);
-		var map = new form.Map('51ddns', '51DDNS 远程控制',
-			'只需填写统一账户令牌即可自动创建设备并上线。设备名称、设备 ID 和连接参数均由平台自动处理。');
-		var section = map.section(form.NamedSection, 'main', 'agent', '快速接入');
+	render(data) {
+		const state = serviceState(data[1]);
+		const local = data[2] || {};
+		const info = data[3] || {};
+		const plan = local.plan || null;
+		const remaining = remainingState(plan?.expires_at);
+		const map = new form.Map(
+			'51ddns',
+			_('51DDNS Remote Access'),
+			_('Enter the account token once to register this router automatically. Device identity and relay settings are managed by the 51DDNS control plane.'),
+		);
+		const section = map.section(form.NamedSection, 'main', 'agent', _('Quick setup'));
 		section.anonymous = true;
 		section.addremove = false;
 
-		var status = section.option(form.DummyValue, '_status', '服务状态');
+		const status = section.option(form.DummyValue, '_status', _('Service status'));
 		status.rawhtml = true;
-		status.cfgvalue = function() {
-			return '<span class="' + state.className + '"><strong>' + state.label + '</strong></span>';
-		};
+		status.cfgvalue = () =>
+			`<span class="${state.className}"><strong>${state.label}</strong></span>`;
 
-		var version = section.option(form.DummyValue, '_version', '插件版本');
-		version.cfgvalue = function() { return '0.1.4 / Agent 0.6.1'; };
+		const version = section.option(form.DummyValue, '_version', _('Agent version'));
+		version.cfgvalue = () => info.version || _('Unavailable');
 
-		var planName = section.option(form.DummyValue, '_plan_name', '当前套餐');
-		planName.cfgvalue = function() { return plan ? plan.product_name : '暂无有效套餐'; };
+		const planName = section.option(form.DummyValue, '_plan_name', _('Current plan'));
+		planName.cfgvalue = () => plan?.product_name || _('No active plan');
 
-		var expiresAt = section.option(form.DummyValue, '_expires_at', '到期时间');
-		expiresAt.cfgvalue = function() { return plan ? formatDate(plan.expires_at) : '未绑定'; };
+		const expiresAt = section.option(form.DummyValue, '_expires_at', _('Expires at'));
+		expiresAt.cfgvalue = () => plan ? formatDate(plan.expires_at) : _('Not bound');
 
-		var remainingTime = section.option(form.DummyValue, '_remaining_time', '剩余时间');
+		const remainingTime = section.option(form.DummyValue, '_remaining_time', _('Time remaining'));
 		remainingTime.rawhtml = true;
-		remainingTime.cfgvalue = function() {
+		remainingTime.cfgvalue = () => {
 			if (!plan)
-				return '<span class="alert-message warning"><strong>请绑定或购买套餐</strong></span>';
-			return '<span class="' + remaining.className + '"><strong>' + remaining.label + '</strong></span>';
+				return `<span class="alert-message warning"><strong>${_('Bind or purchase a plan')}</strong></span>`;
+
+			return `<span class="${remaining.className}"><strong>${remaining.label}</strong></span>`;
 		};
 
-		var consoleLink = section.option(form.DummyValue, '_console', '控制台');
-		consoleLink.rawhtml = true;
-		consoleLink.cfgvalue = function() {
-			return '<a class="btn cbi-button-action" href="https://console.51ddns.com/console#/workbench" target="_blank" rel="noopener">打开 51DDNS 控制台</a>';
-		};
+		const consoleButton = section.option(form.Button, '_console', _('Console'));
+		consoleButton.inputtitle = _('Open 51DDNS Console');
+		consoleButton.inputstyle = 'apply';
+		consoleButton.onclick = () =>
+			window.open('https://console.51ddns.com/console#/workbench', '_blank', 'noopener,noreferrer');
 
-		var enabled = section.option(form.Flag, 'enabled', '启用');
+		const enabled = section.option(form.Flag, 'enabled', _('Enable'));
 		enabled.rmempty = false;
 		enabled.default = enabled.disabled;
 
-		var token = section.option(form.Value, 'account_token', '统一账户令牌');
+		const token = section.option(form.Value, 'account_token', _('Account token'));
 		token.password = true;
 		token.rmempty = false;
 		token.placeholder = '51d_...';
-		token.description = '在 51DDNS 用户后台顶部复制；同一账户的所有设备共用，不需要逐台生成。';
+		token.description = _('Copy the token from the 51DDNS console. All devices in the same account share this token.');
 
 		return map.render();
-	}
+	},
 });

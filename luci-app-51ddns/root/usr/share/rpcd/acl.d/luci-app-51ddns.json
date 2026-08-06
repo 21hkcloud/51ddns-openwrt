@@ -1,17 +1,14 @@
 {
 	"luci-app-51ddns": {
-		"description": "管理 51DDNS 远程控制客户端",
+		"description": "Grant access to the 51DDNS configuration",
 		"read": {
 			"ubus": {
-				"luci.51ddns": [ "status" ],
+				"luci.51ddns": [ "status", "info" ],
 				"service": [ "list" ]
 			},
 			"uci": [ "51ddns" ]
 		},
 		"write": {
-			"ubus": {
-				"service": [ "set" ]
-			},
 			"uci": [ "51ddns" ]
 		}
 	}

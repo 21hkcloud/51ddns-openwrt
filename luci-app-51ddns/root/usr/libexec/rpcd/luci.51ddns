@@ -1,8 +1,12 @@
 #!/bin/sh
 
+json_escape() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
 case "$1" in
 	list)
-		echo '{"status":{}}'
+		echo '{"status":{},"info":{}}'
 		;;
 	call)
 		case "$2" in
@@ -12,6 +16,10 @@ case "$1" in
 				else
 					echo '{"online":false}'
 				fi
+				;;
+			info)
+				version="$(/usr/bin/51ddns-agent --version 2>/dev/null | head -n 1)"
+				printf '{"version":"%s"}\n' "$(json_escape "$version")"
 				;;
 			*)
 				echo '{"error":"method not found"}'

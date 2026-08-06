@@ -1,0 +1,74 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8"
+
+msgid "%d hours"
+msgstr ""
+
+msgid "51DDNS Remote Access"
+msgstr ""
+
+msgid "Account token"
+msgstr ""
+
+msgid "Agent version"
+msgstr ""
+
+msgid "About %d days"
+msgstr ""
+
+msgid "Bind or purchase a plan"
+msgstr ""
+
+msgid "Console"
+msgstr ""
+
+msgid "Copy the token from the 51DDNS console. All devices in the same account share this token."
+msgstr ""
+
+msgid "Current plan"
+msgstr ""
+
+msgid "Enable"
+msgstr ""
+
+msgid "Enter the account token once to register this router automatically. Device identity and relay settings are managed by the 51DDNS control plane."
+msgstr ""
+
+msgid "Expired"
+msgstr ""
+
+msgid "Expires at"
+msgstr ""
+
+msgid "Grant access to the 51DDNS configuration"
+msgstr ""
+
+msgid "No active plan"
+msgstr ""
+
+msgid "Not bound"
+msgstr ""
+
+msgid "Not running"
+msgstr ""
+
+msgid "Open 51DDNS Console"
+msgstr ""
+
+msgid "Quick setup"
+msgstr ""
+
+msgid "Running"
+msgstr ""
+
+msgid "Service status"
+msgstr ""
+
+msgid "Synchronizing"
+msgstr ""
+
+msgid "Time remaining"
+msgstr ""
+
+msgid "Unavailable"
+msgstr ""

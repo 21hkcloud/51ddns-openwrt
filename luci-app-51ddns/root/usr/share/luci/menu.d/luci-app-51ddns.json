@@ -1,6 +1,6 @@
 {
 	"admin/services/51ddns": {
-		"title": "51DDNS 远程控制",
+		"title": "51DDNS Remote Access",
 		"order": 35,
 		"action": {
 			"type": "view",
