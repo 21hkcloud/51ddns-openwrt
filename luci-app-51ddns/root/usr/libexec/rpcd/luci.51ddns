@@ -1,0 +1,25 @@
+#!/bin/sh
+
+case "$1" in
+	list)
+		echo '{"status":{}}'
+		;;
+	call)
+		case "$2" in
+			status)
+				if [ -s /var/lib/51ddns/status.json ]; then
+					cat /var/lib/51ddns/status.json
+				else
+					echo '{"online":false}'
+				fi
+				;;
+			*)
+				echo '{"error":"method not found"}'
+				exit 1
+				;;
+		esac
+		;;
+	*)
+		exit 1
+		;;
+esac
