@@ -89,7 +89,10 @@ start_service() {
 	procd_add_jail_mount /etc/ssl/certs
 	procd_add_jail_mount /etc/TZ
 	procd_add_jail_mount /etc/openwrt_release
+	procd_add_jail_mount /bin/sleep
+	procd_add_jail_mount /usr/bin/51ddns-agent
 	procd_add_jail_mount /usr/bin/frpc
+	procd_add_jail_mount /usr/bin/logger
 	procd_add_jail_mount_rw "$SECRET_DIR"
 	procd_add_jail_mount_rw "$RUNTIME_DIR"
 	procd_close_instance
