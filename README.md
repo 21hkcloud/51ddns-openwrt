@@ -32,16 +32,18 @@ temporary `/var/lib/51ddns` directory and is re-created after reboot.
 - `packages/51ddns-agent`: Go agent built from this source by the OpenWrt build
   system. It depends on the feed-provided `frpc` package and does not download a
   precompiled 51DDNS executable.
-- `luci-app-51ddns`: LuCI page under **Services → 51DDNS Remote Access**.
+
+The LuCI interface is maintained separately for submission to the official
+[`openwrt/luci`](https://github.com/openwrt/luci) feed. It is intentionally not
+bundled in this agent source archive.
 
 ## Build from source
 
-Copy `packages/51ddns-agent` and `luci-app-51ddns` into an OpenWrt SDK or source
-tree under `package/`, then build them normally:
+Copy `packages/51ddns-agent` into an OpenWrt SDK or source tree under
+`package/`, then build it normally:
 
 ```sh
 make package/51ddns-agent/compile V=s
-make package/luci-app-51ddns/compile V=s
 ```
 
 ## Data and privacy
