@@ -47,7 +47,10 @@ jobs:
 
           curl -fsSL --retry 3 "${release_base}/sha256sums" -o "${RUNNER_TEMP}/sha256sums"
           curl -fL --retry 3 "${release_base}/${sdk_file}" -o "${RUNNER_TEMP}/${sdk_file}"
-          grep -F " ${sdk_file}" "${RUNNER_TEMP}/sha256sums" | sha256sum -c -
+          (
+            cd "${RUNNER_TEMP}"
+            grep -F " *${sdk_file}" sha256sums | sha256sum -c -
+          )
 
           sdk_dir="${RUNNER_TEMP}/openwrt-sdk-${PACKAGE_ARCH}"
           mkdir -p "${sdk_dir}"
