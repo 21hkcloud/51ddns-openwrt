@@ -16,29 +16,64 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch:
-          - x86_64
-          - aarch64_cortex-a53
-          - mips_24kc
-          - mipsel_24kc
+        include:
+          - arch: x86_64
+            target: x86/64
+          - arch: aarch64_cortex-a53
+            target: mediatek/filogic
+          - arch: mips_24kc
+            target: ath79/generic
+          - arch: mipsel_24kc
+            target: ramips/mt7621
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Build agent package from source
-        uses: openwrt/gh-action-sdk@main
+      - name: Build agent package from the OpenWrt 25.12.5 SDK
+        shell: bash
         env:
-          ARCH: ${{ matrix.arch }}
-          BUILD_LOG: 1
-          PACKAGES: 51ddns-agent
-          V: s
+          OPENWRT_VERSION: 25.12.5
+          OPENWRT_TARGET: ${{ matrix.target }}
+          PACKAGE_ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+
+          release_base="https://downloads.openwrt.org/releases/${OPENWRT_VERSION}/targets/${OPENWRT_TARGET}"
+          sdk_file="$({ curl -fsSL "${release_base}/" | grep -oE "openwrt-sdk-${OPENWRT_VERSION}-[^\"]+\.Linux-x86_64\.tar\.zst" || true; } | sort -u | head -n 1)"
+          if [ -z "${sdk_file}" ]; then
+            echo "Unable to locate the OpenWrt SDK for ${OPENWRT_TARGET}" >&2
+            exit 1
+          fi
+
+          curl -fsSL --retry 3 "${release_base}/sha256sums" -o "${RUNNER_TEMP}/sha256sums"
+          curl -fL --retry 3 "${release_base}/${sdk_file}" -o "${RUNNER_TEMP}/${sdk_file}"
+          grep -F " ${sdk_file}" "${RUNNER_TEMP}/sha256sums" | sha256sum -c -
+
+          sdk_dir="${RUNNER_TEMP}/openwrt-sdk-${PACKAGE_ARCH}"
+          mkdir -p "${sdk_dir}"
+          tar --zstd -xf "${RUNNER_TEMP}/${sdk_file}" --strip-components=1 -C "${sdk_dir}"
+          cd "${sdk_dir}"
+
+          # Keep every feed at the exact revision used to publish this SDK.
+          curl -fsSL --retry 3 "${release_base}/feeds.buildinfo" -o feeds.conf
+          printf 'src-link action %s\n' "${GITHUB_WORKSPACE}" >> feeds.conf
+          ./scripts/feeds update -a
+          ./scripts/feeds install -p action -f 51ddns-agent
+          make defconfig
+          make package/51ddns-agent/download V=s
+          make -j"$(nproc)" package/51ddns-agent/compile V=s
+
+          artifact_dir="${GITHUB_WORKSPACE}/artifacts/openwrt-${PACKAGE_ARCH}"
+          mkdir -p "${artifact_dir}"
+          find bin -type f \( -name '*.apk' -o -name '*.ipk' \) \
+            -exec cp --parents '{}' "${artifact_dir}" \;
       - name: Upload OpenWrt packages
         uses: actions/upload-artifact@v4
         with:
           name: openwrt-${{ matrix.arch }}
           path: |
-            bin/**/*.apk
-            bin/**/*.ipk
+            artifacts/openwrt-${{ matrix.arch }}/**/*.apk
+            artifacts/openwrt-${{ matrix.arch }}/**/*.ipk
           if-no-files-found: error
 
   immortalwrt:
