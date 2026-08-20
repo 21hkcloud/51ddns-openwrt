@@ -25,12 +25,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Build packages from source
+      - name: Build agent package from source
         uses: openwrt/gh-action-sdk@main
         env:
           ARCH: ${{ matrix.arch }}
           BUILD_LOG: 1
-          PACKAGES: 51ddns-agent luci-app-51ddns
+          PACKAGES: 51ddns-agent
           V: s
       - name: Upload OpenWrt packages
         uses: actions/upload-artifact@v4
@@ -56,12 +56,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Build packages from source
+      - name: Build agent package from source
         uses: immortalwrt/gh-action-sdk@master
         env:
           ARCH: ${{ matrix.arch }}
           BUILD_LOG: 1
-          PACKAGES: 51ddns-agent luci-app-51ddns
+          PACKAGES: 51ddns-agent
           V: s
       - name: Upload ImmortalWrt packages
         uses: actions/upload-artifact@v4
