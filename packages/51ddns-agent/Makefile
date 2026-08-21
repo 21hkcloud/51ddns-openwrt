@@ -4,12 +4,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=51ddns-agent
-PKG_VERSION:=0.6.2
+PKG_VERSION:=0.6.3
 PKG_RELEASE:=1
 
 PKG_SOURCE:=51ddns-openwrt-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/21hkcloud/51ddns-openwrt/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=674bcd1121e4105a0c505fb08a15a3b8bc3dd33d75d8f312df696fc4be9be239
+PKG_HASH:=102188815ddacc31777c47d2565921a002123632aa03004b4fb599c532ae9e0c
 PKG_BUILD_DIR:=$(BUILD_DIR)/51ddns-openwrt-$(PKG_VERSION)
 
 PKG_MAINTAINER:=Jinshuan Wang <21hkcloud@gmail.com>
