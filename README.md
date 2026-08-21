@@ -21,11 +21,14 @@ the client connects to. Only install and enable this package if you trust the
 51DDNS service operator. Disable the service or remove the package to stop all
 51DDNS-managed tunnels.
 
-The OpenWrt package runs the agent and its `frpc` children as a dedicated,
-unprivileged `ddns51` user inside a procd/ujail sandbox. Persistent credentials
-are stored in `/etc/51ddns` with restricted permissions and included in the
-sysupgrade backup set. Runtime-generated FRP configuration is stored in the
-temporary `/var/lib/51ddns` directory and is re-created after reboot.
+The OpenWrt package always runs the agent and its `frpc` children as the
+dedicated, unprivileged `ddns51` user with `no_new_privs`. It also enters a
+procd/ujail sandbox when the target provides `/sbin/ujail`; small-flash targets
+without ujail remain supported and run unjailed but still unprivileged.
+Persistent credentials are stored in `/etc/51ddns` with restricted permissions
+and included in the sysupgrade backup set. Runtime-generated FRP configuration
+is stored in the temporary `/var/lib/51ddns` directory and is re-created after
+reboot.
 
 ## Packages
 
@@ -45,6 +48,9 @@ Copy `packages/51ddns-agent` into an OpenWrt SDK or source tree under
 ```sh
 make package/51ddns-agent/compile V=s
 ```
+
+For package installation, configuration, verification, troubleshooting and
+removal, see [the OpenWrt user guide](docs/openwrt.md).
 
 ## Data and privacy
 
