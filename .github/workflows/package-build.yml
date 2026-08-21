@@ -79,6 +79,73 @@ jobs:
             artifacts/openwrt-${{ matrix.arch }}/**/*.ipk
           if-no-files-found: error
 
+  openwrt-24-10:
+    name: OpenWrt 24.10 / ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            target: x86/64
+          - arch: aarch64_cortex-a53
+            target: mediatek/filogic
+          - arch: mips_24kc
+            target: ath79/generic
+          - arch: mipsel_24kc
+            target: ramips/mt7621
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build agent IPK from the OpenWrt 24.10.8 SDK
+        shell: bash
+        env:
+          OPENWRT_VERSION: 24.10.8
+          OPENWRT_TARGET: ${{ matrix.target }}
+          PACKAGE_ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+
+          release_base="https://downloads.openwrt.org/releases/${OPENWRT_VERSION}/targets/${OPENWRT_TARGET}"
+          sdk_file="$({ curl -fsSL "${release_base}/" | grep -oE "openwrt-sdk-${OPENWRT_VERSION}-[^\"]+\.Linux-x86_64\.tar\.zst" || true; } | sort -u | head -n 1)"
+          if [ -z "${sdk_file}" ]; then
+            echo "Unable to locate the OpenWrt SDK for ${OPENWRT_TARGET}" >&2
+            exit 1
+          fi
+
+          curl -fsSL --retry 3 "${release_base}/sha256sums" -o "${RUNNER_TEMP}/sha256sums"
+          curl -fL --retry 3 "${release_base}/${sdk_file}" -o "${RUNNER_TEMP}/${sdk_file}"
+          (
+            cd "${RUNNER_TEMP}"
+            grep -F " *${sdk_file}" sha256sums | sha256sum -c -
+          )
+
+          sdk_dir="${RUNNER_TEMP}/openwrt-24.10-sdk-${PACKAGE_ARCH}"
+          mkdir -p "${sdk_dir}"
+          tar --zstd -xf "${RUNNER_TEMP}/${sdk_file}" --strip-components=1 -C "${sdk_dir}"
+          cd "${sdk_dir}"
+
+          # Match the feeds used by this release SDK while building 51DDNS
+          # directly from the checked-out source tree.
+          curl -fsSL --retry 3 "${release_base}/feeds.buildinfo" -o feeds.conf
+          printf 'src-link action %s\n' "${GITHUB_WORKSPACE}" >> feeds.conf
+          ./scripts/feeds update -a
+          ./scripts/feeds install -p action -f 51ddns-agent
+          make defconfig
+          make package/51ddns-agent/download V=s
+          make -j"$(nproc)" package/51ddns-agent/compile V=s
+
+          artifact_dir="${GITHUB_WORKSPACE}/artifacts/openwrt-24.10-${PACKAGE_ARCH}"
+          mkdir -p "${artifact_dir}"
+          find bin -type f -name '*.ipk' -exec cp --parents '{}' "${artifact_dir}" \;
+      - name: Upload OpenWrt 24.10 IPK packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-24.10-${{ matrix.arch }}
+          path: artifacts/openwrt-24.10-${{ matrix.arch }}/**/*.ipk
+          if-no-files-found: error
+
   immortalwrt:
     name: ImmortalWrt / ${{ matrix.arch }}
     runs-on: ubuntu-latest
