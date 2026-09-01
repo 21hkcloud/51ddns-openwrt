@@ -68,8 +68,11 @@ jobs:
           make defconfig
           make package/51ddns-agent/download V=s
           make -j"$(nproc)" package/51ddns-agent/compile V=s
-          # LuCI pulls several feed dependencies into a bare SDK. Build that
-          # dependency graph serially so headers are staged before consumers.
+          # A release SDK does not ship target development headers. Stage the
+          # three LuCI build dependencies before compiling their consumers.
+          make -j1 package/utils/lua/compile V=s
+          make -j1 package/utils/ucode/compile V=s
+          make -j1 package/libs/libnl-tiny/compile V=s
           make -j1 package/luci-app-51ddns/compile V=s
 
           artifact_dir="${GITHUB_WORKSPACE}/artifacts/openwrt-${PACKAGE_ARCH}"
@@ -144,8 +147,11 @@ jobs:
           make defconfig
           make package/51ddns-agent/download V=s
           make -j"$(nproc)" package/51ddns-agent/compile V=s
-          # OpenWrt 24.10 SDKs otherwise race staging of ucode, Lua and libnl
-          # headers while compiling luci-base dependencies.
+          # A release SDK does not ship target development headers. Stage the
+          # three LuCI build dependencies before compiling their consumers.
+          make -j1 package/utils/lua/compile V=s
+          make -j1 package/utils/ucode/compile V=s
+          make -j1 package/libs/libnl-tiny/compile V=s
           make -j1 package/luci-app-51ddns/compile V=s
 
           artifact_dir="${GITHUB_WORKSPACE}/artifacts/openwrt-24.10-${PACKAGE_ARCH}"
