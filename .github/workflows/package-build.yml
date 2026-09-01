@@ -64,7 +64,10 @@ jobs:
           ./scripts/feeds install -p action -f 51ddns-agent luci-app-51ddns
           make defconfig
           make package/51ddns-agent/download V=s
-          make -j"$(nproc)" package/51ddns-agent/compile package/luci-app-51ddns/compile V=s
+          make -j"$(nproc)" package/51ddns-agent/compile V=s
+          # LuCI pulls several feed dependencies into a bare SDK. Build that
+          # dependency graph serially so headers are staged before consumers.
+          make -j1 package/luci-app-51ddns/compile V=s
 
           artifact_dir="${GITHUB_WORKSPACE}/artifacts/openwrt-${PACKAGE_ARCH}"
           mkdir -p "${artifact_dir}"
@@ -134,7 +137,10 @@ jobs:
           ./scripts/feeds install -p action -f 51ddns-agent luci-app-51ddns
           make defconfig
           make package/51ddns-agent/download V=s
-          make -j"$(nproc)" package/51ddns-agent/compile package/luci-app-51ddns/compile V=s
+          make -j"$(nproc)" package/51ddns-agent/compile V=s
+          # OpenWrt 24.10 SDKs otherwise race staging of ucode, Lua and libnl
+          # headers while compiling luci-base dependencies.
+          make -j1 package/luci-app-51ddns/compile V=s
 
           artifact_dir="${GITHUB_WORKSPACE}/artifacts/openwrt-24.10-${PACKAGE_ARCH}"
           mkdir -p "${artifact_dir}"
