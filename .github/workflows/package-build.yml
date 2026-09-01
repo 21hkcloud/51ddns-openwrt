@@ -61,10 +61,10 @@ jobs:
           curl -fsSL --retry 3 "${release_base}/feeds.buildinfo" -o feeds.conf
           printf 'src-link action %s\n' "${GITHUB_WORKSPACE}" >> feeds.conf
           ./scripts/feeds update -a
-          ./scripts/feeds install -p action -f 51ddns-agent
+          ./scripts/feeds install -p action -f 51ddns-agent luci-app-51ddns
           make defconfig
           make package/51ddns-agent/download V=s
-          make -j"$(nproc)" package/51ddns-agent/compile V=s
+          make -j"$(nproc)" package/51ddns-agent/compile package/luci-app-51ddns/compile V=s
 
           artifact_dir="${GITHUB_WORKSPACE}/artifacts/openwrt-${PACKAGE_ARCH}"
           mkdir -p "${artifact_dir}"
@@ -131,10 +131,10 @@ jobs:
           curl -fsSL --retry 3 "${release_base}/feeds.buildinfo" -o feeds.conf
           printf 'src-link action %s\n' "${GITHUB_WORKSPACE}" >> feeds.conf
           ./scripts/feeds update -a
-          ./scripts/feeds install -p action -f 51ddns-agent
+          ./scripts/feeds install -p action -f 51ddns-agent luci-app-51ddns
           make defconfig
           make package/51ddns-agent/download V=s
-          make -j"$(nproc)" package/51ddns-agent/compile V=s
+          make -j"$(nproc)" package/51ddns-agent/compile package/luci-app-51ddns/compile V=s
 
           artifact_dir="${GITHUB_WORKSPACE}/artifacts/openwrt-24.10-${PACKAGE_ARCH}"
           mkdir -p "${artifact_dir}"
@@ -166,7 +166,7 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}
           BUILD_LOG: 1
-          PACKAGES: 51ddns-agent
+          PACKAGES: 51ddns-agent luci-app-51ddns
           V: s
       - name: Upload ImmortalWrt packages
         uses: actions/upload-artifact@v4
