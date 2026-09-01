@@ -34,8 +34,10 @@ enable the client only if they trust the service operator. Stopping the
 
 ## Local storage
 
-The account token, device ID, and installation ID are stored locally under
-`/etc/51ddns` with restricted permissions. Generated FRP configuration and
+The account token is stored in `/etc/config/51ddns` and copied to
+`/etc/51ddns/device.token` with restricted permissions while the service runs.
+The device ID and installation ID are also stored under `/etc/51ddns`. Both
+locations are preserved across sysupgrade. Generated FRP configuration and
 non-sensitive status data are stored under `/var/lib/51ddns`, which is temporary
 on OpenWrt and is re-created after a reboot.
 
