@@ -57,10 +57,26 @@ jobs:
           tar --zstd -xf "${RUNNER_TEMP}/${sdk_file}" --strip-components=1 -C "${sdk_dir}"
           cd "${sdk_dir}"
 
+          # Release SDKs omit some built-in package sources. Pull only the
+          # target-header providers from the matching OpenWrt release tag.
+          deps_source="${RUNNER_TEMP}/openwrt-source-${OPENWRT_VERSION}"
+          deps_feed="${RUNNER_TEMP}/sdkdeps"
+          git clone --depth 1 --filter=blob:none --sparse \
+            --branch "v${OPENWRT_VERSION}" \
+            https://github.com/openwrt/openwrt.git "${deps_source}"
+          git -C "${deps_source}" sparse-checkout set \
+            package/utils/lua package/utils/ucode package/libs/libnl-tiny
+          mkdir -p "${deps_feed}"
+          cp -a "${deps_source}/package/utils/lua" "${deps_feed}/lua"
+          cp -a "${deps_source}/package/utils/ucode" "${deps_feed}/ucode"
+          cp -a "${deps_source}/package/libs/libnl-tiny" "${deps_feed}/libnl-tiny"
+
           # Keep every feed at the exact revision used to publish this SDK.
           curl -fsSL --retry 3 "${release_base}/feeds.buildinfo" -o feeds.conf
+          printf 'src-link sdkdeps %s\n' "${deps_feed}" >> feeds.conf
           printf 'src-link action %s\n' "${GITHUB_WORKSPACE}" >> feeds.conf
           ./scripts/feeds update -a
+          ./scripts/feeds install -p sdkdeps -f lua ucode libnl-tiny
           ./scripts/feeds install -p action -f 51ddns-agent luci-app-51ddns
           printf '%s\n' \
             'CONFIG_PACKAGE_51ddns-agent=m' \
@@ -70,9 +86,9 @@ jobs:
           make -j"$(nproc)" package/51ddns-agent/compile V=s
           # A release SDK does not ship target development headers. Stage the
           # three LuCI build dependencies before compiling their consumers.
-          make -j1 package/lua/compile V=s
-          make -j1 package/ucode/compile V=s
-          make -j1 package/libnl-tiny/compile V=s
+          make -j1 package/feeds/sdkdeps/lua/compile V=s
+          make -j1 package/feeds/sdkdeps/ucode/compile V=s
+          make -j1 package/feeds/sdkdeps/libnl-tiny/compile V=s
           make -j1 package/luci-app-51ddns/compile V=s
 
           artifact_dir="${GITHUB_WORKSPACE}/artifacts/openwrt-${PACKAGE_ARCH}"
@@ -135,11 +151,27 @@ jobs:
           tar --zstd -xf "${RUNNER_TEMP}/${sdk_file}" --strip-components=1 -C "${sdk_dir}"
           cd "${sdk_dir}"
 
+          # Release SDKs omit some built-in package sources. Pull only the
+          # target-header providers from the matching OpenWrt release tag.
+          deps_source="${RUNNER_TEMP}/openwrt-source-${OPENWRT_VERSION}"
+          deps_feed="${RUNNER_TEMP}/sdkdeps"
+          git clone --depth 1 --filter=blob:none --sparse \
+            --branch "v${OPENWRT_VERSION}" \
+            https://github.com/openwrt/openwrt.git "${deps_source}"
+          git -C "${deps_source}" sparse-checkout set \
+            package/utils/lua package/utils/ucode package/libs/libnl-tiny
+          mkdir -p "${deps_feed}"
+          cp -a "${deps_source}/package/utils/lua" "${deps_feed}/lua"
+          cp -a "${deps_source}/package/utils/ucode" "${deps_feed}/ucode"
+          cp -a "${deps_source}/package/libs/libnl-tiny" "${deps_feed}/libnl-tiny"
+
           # Match the feeds used by this release SDK while building 51DDNS
           # directly from the checked-out source tree.
           curl -fsSL --retry 3 "${release_base}/feeds.buildinfo" -o feeds.conf
+          printf 'src-link sdkdeps %s\n' "${deps_feed}" >> feeds.conf
           printf 'src-link action %s\n' "${GITHUB_WORKSPACE}" >> feeds.conf
           ./scripts/feeds update -a
+          ./scripts/feeds install -p sdkdeps -f lua ucode libnl-tiny
           ./scripts/feeds install -p action -f 51ddns-agent luci-app-51ddns
           printf '%s\n' \
             'CONFIG_PACKAGE_51ddns-agent=m' \
@@ -149,9 +181,9 @@ jobs:
           make -j"$(nproc)" package/51ddns-agent/compile V=s
           # A release SDK does not ship target development headers. Stage the
           # three LuCI build dependencies before compiling their consumers.
-          make -j1 package/lua/compile V=s
-          make -j1 package/ucode/compile V=s
-          make -j1 package/libnl-tiny/compile V=s
+          make -j1 package/feeds/sdkdeps/lua/compile V=s
+          make -j1 package/feeds/sdkdeps/ucode/compile V=s
+          make -j1 package/feeds/sdkdeps/libnl-tiny/compile V=s
           make -j1 package/luci-app-51ddns/compile V=s
 
           artifact_dir="${GITHUB_WORKSPACE}/artifacts/openwrt-24.10-${PACKAGE_ARCH}"
