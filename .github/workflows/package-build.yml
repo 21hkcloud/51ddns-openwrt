@@ -19,8 +19,8 @@ jobs:
         include:
           - arch: x86_64
             target: x86/64
-          - arch: aarch64_cortex-a53
-            target: mediatek/filogic
+          - arch: aarch64_generic
+            target: armsr/armv8
           - arch: mips_24kc
             target: ath79/generic
           - arch: mipsel_24kc
