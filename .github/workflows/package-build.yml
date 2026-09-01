@@ -62,6 +62,9 @@ jobs:
           printf 'src-link action %s\n' "${GITHUB_WORKSPACE}" >> feeds.conf
           ./scripts/feeds update -a
           ./scripts/feeds install -p action -f 51ddns-agent luci-app-51ddns
+          printf '%s\n' \
+            'CONFIG_PACKAGE_51ddns-agent=m' \
+            'CONFIG_PACKAGE_luci-app-51ddns=m' >> .config
           make defconfig
           make package/51ddns-agent/download V=s
           make -j"$(nproc)" package/51ddns-agent/compile V=s
@@ -135,6 +138,9 @@ jobs:
           printf 'src-link action %s\n' "${GITHUB_WORKSPACE}" >> feeds.conf
           ./scripts/feeds update -a
           ./scripts/feeds install -p action -f 51ddns-agent luci-app-51ddns
+          printf '%s\n' \
+            'CONFIG_PACKAGE_51ddns-agent=m' \
+            'CONFIG_PACKAGE_luci-app-51ddns=m' >> .config
           make defconfig
           make package/51ddns-agent/download V=s
           make -j"$(nproc)" package/51ddns-agent/compile V=s
