@@ -57,14 +57,59 @@ jobs:
           tar --zstd -xf "${RUNNER_TEMP}/${sdk_file}" --strip-components=1 -C "${sdk_dir}"
           cd "${sdk_dir}"
 
+          # Release SDKs omit some built-in package sources. Pull only the
+          # target-header providers from the matching OpenWrt release tag.
+          deps_source="${RUNNER_TEMP}/openwrt-source-${OPENWRT_VERSION}"
+          deps_feed="${RUNNER_TEMP}/sdkdeps"
+          git clone --depth 1 --filter=blob:none --sparse \
+            --branch "v${OPENWRT_VERSION}" \
+            https://github.com/openwrt/openwrt.git "${deps_source}"
+          git -C "${deps_source}" sparse-checkout set \
+            package/libs/libjson-c package/libs/libmd package/libs/libnl-tiny \
+            package/libs/libubox package/libs/zlib package/network/utils/iwinfo \
+            package/system/rpcd package/system/ubus package/system/uci \
+            package/utils/lua package/utils/ucode
+          mkdir -p "${deps_feed}"
+          cp -a "${deps_source}/package/libs/libjson-c" "${deps_feed}/libjson-c"
+          cp -a "${deps_source}/package/libs/libmd" "${deps_feed}/libmd"
+          cp -a "${deps_source}/package/libs/libnl-tiny" "${deps_feed}/libnl-tiny"
+          cp -a "${deps_source}/package/libs/libubox" "${deps_feed}/libubox"
+          cp -a "${deps_source}/package/libs/zlib" "${deps_feed}/zlib"
+          cp -a "${deps_source}/package/network/utils/iwinfo" "${deps_feed}/iwinfo"
+          cp -a "${deps_source}/package/system/rpcd" "${deps_feed}/rpcd"
+          cp -a "${deps_source}/package/system/ubus" "${deps_feed}/ubus"
+          cp -a "${deps_source}/package/system/uci" "${deps_feed}/uci"
+          cp -a "${deps_source}/package/utils/lua" "${deps_feed}/lua"
+          cp -a "${deps_source}/package/utils/ucode" "${deps_feed}/ucode"
+
           # Keep every feed at the exact revision used to publish this SDK.
           curl -fsSL --retry 3 "${release_base}/feeds.buildinfo" -o feeds.conf
+          printf 'src-link sdkdeps %s\n' "${deps_feed}" >> feeds.conf
           printf 'src-link action %s\n' "${GITHUB_WORKSPACE}" >> feeds.conf
           ./scripts/feeds update -a
-          ./scripts/feeds install -p action -f 51ddns-agent
+          ./scripts/feeds install -p sdkdeps -f -a
+          ./scripts/feeds install -p action -f 51ddns-agent luci-app-51ddns
+          printf '%s\n' \
+            'CONFIG_PACKAGE_51ddns-agent=m' \
+            'CONFIG_PACKAGE_luci-app-51ddns=m' >> .config
           make defconfig
           make package/51ddns-agent/download V=s
           make -j"$(nproc)" package/51ddns-agent/compile V=s
+          # A release SDK does not ship target development headers. Stage the
+          # three LuCI build dependencies before compiling their consumers.
+          make -j1 package/feeds/sdkdeps/zlib/compile V=s
+          make -j1 package/feeds/sdkdeps/libmd/compile V=s
+          make -j1 package/feeds/sdkdeps/libjson-c/host/compile V=s
+          make -j1 package/feeds/sdkdeps/libjson-c/compile V=s
+          make -j1 package/feeds/sdkdeps/lua/compile V=s
+          make -j1 package/feeds/sdkdeps/libubox/compile V=s
+          make -j1 package/feeds/sdkdeps/ubus/compile V=s
+          make -j1 package/feeds/sdkdeps/uci/compile V=s
+          make -j1 package/feeds/sdkdeps/libnl-tiny/compile V=s
+          make -j1 package/feeds/sdkdeps/ucode/compile V=s
+          make -j1 package/feeds/sdkdeps/iwinfo/compile V=s
+          make -j1 package/feeds/sdkdeps/rpcd/compile V=s
+          make -j1 package/luci-app-51ddns/compile V=s
 
           artifact_dir="${GITHUB_WORKSPACE}/artifacts/openwrt-${PACKAGE_ARCH}"
           mkdir -p "${artifact_dir}"
@@ -126,15 +171,60 @@ jobs:
           tar --zstd -xf "${RUNNER_TEMP}/${sdk_file}" --strip-components=1 -C "${sdk_dir}"
           cd "${sdk_dir}"
 
+          # Release SDKs omit some built-in package sources. Pull only the
+          # target-header providers from the matching OpenWrt release tag.
+          deps_source="${RUNNER_TEMP}/openwrt-source-${OPENWRT_VERSION}"
+          deps_feed="${RUNNER_TEMP}/sdkdeps"
+          git clone --depth 1 --filter=blob:none --sparse \
+            --branch "v${OPENWRT_VERSION}" \
+            https://github.com/openwrt/openwrt.git "${deps_source}"
+          git -C "${deps_source}" sparse-checkout set \
+            package/libs/libjson-c package/libs/libmd package/libs/libnl-tiny \
+            package/libs/libubox package/libs/zlib package/network/utils/iwinfo \
+            package/system/rpcd package/system/ubus package/system/uci \
+            package/utils/lua package/utils/ucode
+          mkdir -p "${deps_feed}"
+          cp -a "${deps_source}/package/libs/libjson-c" "${deps_feed}/libjson-c"
+          cp -a "${deps_source}/package/libs/libmd" "${deps_feed}/libmd"
+          cp -a "${deps_source}/package/libs/libnl-tiny" "${deps_feed}/libnl-tiny"
+          cp -a "${deps_source}/package/libs/libubox" "${deps_feed}/libubox"
+          cp -a "${deps_source}/package/libs/zlib" "${deps_feed}/zlib"
+          cp -a "${deps_source}/package/network/utils/iwinfo" "${deps_feed}/iwinfo"
+          cp -a "${deps_source}/package/system/rpcd" "${deps_feed}/rpcd"
+          cp -a "${deps_source}/package/system/ubus" "${deps_feed}/ubus"
+          cp -a "${deps_source}/package/system/uci" "${deps_feed}/uci"
+          cp -a "${deps_source}/package/utils/lua" "${deps_feed}/lua"
+          cp -a "${deps_source}/package/utils/ucode" "${deps_feed}/ucode"
+
           # Match the feeds used by this release SDK while building 51DDNS
           # directly from the checked-out source tree.
           curl -fsSL --retry 3 "${release_base}/feeds.buildinfo" -o feeds.conf
+          printf 'src-link sdkdeps %s\n' "${deps_feed}" >> feeds.conf
           printf 'src-link action %s\n' "${GITHUB_WORKSPACE}" >> feeds.conf
           ./scripts/feeds update -a
-          ./scripts/feeds install -p action -f 51ddns-agent
+          ./scripts/feeds install -p sdkdeps -f -a
+          ./scripts/feeds install -p action -f 51ddns-agent luci-app-51ddns
+          printf '%s\n' \
+            'CONFIG_PACKAGE_51ddns-agent=m' \
+            'CONFIG_PACKAGE_luci-app-51ddns=m' >> .config
           make defconfig
           make package/51ddns-agent/download V=s
           make -j"$(nproc)" package/51ddns-agent/compile V=s
+          # A release SDK does not ship target development headers. Stage the
+          # three LuCI build dependencies before compiling their consumers.
+          make -j1 package/feeds/sdkdeps/zlib/compile V=s
+          make -j1 package/feeds/sdkdeps/libmd/compile V=s
+          make -j1 package/feeds/sdkdeps/libjson-c/host/compile V=s
+          make -j1 package/feeds/sdkdeps/libjson-c/compile V=s
+          make -j1 package/feeds/sdkdeps/lua/compile V=s
+          make -j1 package/feeds/sdkdeps/libubox/compile V=s
+          make -j1 package/feeds/sdkdeps/ubus/compile V=s
+          make -j1 package/feeds/sdkdeps/uci/compile V=s
+          make -j1 package/feeds/sdkdeps/libnl-tiny/compile V=s
+          make -j1 package/feeds/sdkdeps/ucode/compile V=s
+          make -j1 package/feeds/sdkdeps/iwinfo/compile V=s
+          make -j1 package/feeds/sdkdeps/rpcd/compile V=s
+          make -j1 package/luci-app-51ddns/compile V=s
 
           artifact_dir="${GITHUB_WORKSPACE}/artifacts/openwrt-24.10-${PACKAGE_ARCH}"
           mkdir -p "${artifact_dir}"
@@ -166,7 +256,7 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}
           BUILD_LOG: 1
-          PACKAGES: 51ddns-agent
+          PACKAGES: 51ddns-agent luci-app-51ddns
           V: s
       - name: Upload ImmortalWrt packages
         uses: actions/upload-artifact@v4

@@ -36,18 +36,19 @@ sysupgrade. Runtime-generated FRP configuration is stored in the temporary
 - `packages/51ddns-agent`: Go agent built from this source by the OpenWrt build
   system. It depends on the feed-provided `frpc` package and does not download a
   precompiled 51DDNS executable.
-
-The LuCI interface is maintained separately for submission to the official
-[`openwrt/luci`](https://github.com/openwrt/luci) feed. It is intentionally not
-bundled in this agent source archive.
+- `luci-app-51ddns`: architecture-independent LuCI interface. Its
+  `LUCI_PKGARCH:=all` declaration produces one package shared by all supported
+  router architectures. The same reviewed source is submitted to the official
+  [`openwrt/luci`](https://github.com/openwrt/luci) feed.
 
 ## Build from source
 
-Copy `packages/51ddns-agent` into an OpenWrt SDK or source tree under
-`package/`, then build it normally:
+Add this repository as a local OpenWrt feed, or copy both package directories
+into an OpenWrt SDK or source tree, then build them normally:
 
 ```sh
 make package/51ddns-agent/compile V=s
+make package/luci-app-51ddns/compile V=s
 ```
 
 For package installation, configuration, verification, troubleshooting and
