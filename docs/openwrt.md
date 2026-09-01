@@ -35,8 +35,10 @@ The LuCI package is optional. The agent can be configured entirely with UCI.
 ## Configure with LuCI
 
 Open **Services -> 51DDNS Remote Access**, paste the account token, enable the
-service, and select **Save & Apply**. The page shows the service state, assigned
-device ID and a link to the 51DDNS console.
+service, and select **Save & Apply**. The page shows the local agent process
+state, agent version, current plan, expiry information and a link to the 51DDNS
+console. A running process alone does not prove that the router has connected to
+the control plane; confirm that the device appears in the console.
 
 ## Configure with UCI
 
@@ -111,10 +113,12 @@ The package always runs under the unprivileged `ddns51` user with
 `no_new_privs`. It uses a procd/ujail sandbox where `/sbin/ujail` is available.
 On small-flash targets without ujail, it remains unprivileged but is not jailed.
 
-Credentials and stable identifiers are stored under `/etc/51ddns` with
-restricted permissions and are preserved across sysupgrade. Generated FRP
-configuration is stored under `/var/lib/51ddns`, which is temporary on OpenWrt.
-See [the privacy notice](../PRIVACY.md) for the data processed by the client.
+The account token is configured in `/etc/config/51ddns` and copied at runtime
+to `/etc/51ddns/device.token` with restricted permissions. Stable identifiers
+are also stored under `/etc/51ddns`. Both locations are preserved across
+sysupgrade. Generated FRP configuration is stored under `/var/lib/51ddns`,
+which is temporary on OpenWrt. See [the privacy notice](../PRIVACY.md) for the
+data processed by the client.
 
 ## Disable or remove
 
@@ -140,6 +144,7 @@ service is stopped and the package is removed, delete them only if the device
 should no longer retain its 51DDNS identity:
 
 ```sh
+rm -f /etc/config/51ddns
 rm -rf /etc/51ddns
 ```
 

@@ -25,10 +25,11 @@ The OpenWrt package always runs the agent and its `frpc` children as the
 dedicated, unprivileged `ddns51` user with `no_new_privs`. It also enters a
 procd/ujail sandbox when the target provides `/sbin/ujail`; small-flash targets
 without ujail remain supported and run unjailed but still unprivileged.
-Persistent credentials are stored in `/etc/51ddns` with restricted permissions
-and included in the sysupgrade backup set. Runtime-generated FRP configuration
-is stored in the temporary `/var/lib/51ddns` directory and is re-created after
-reboot.
+The account token is configured in `/etc/config/51ddns` and copied at runtime
+to `/etc/51ddns/device.token` with restricted permissions. Device identity is
+also stored under `/etc/51ddns`. Both locations are preserved across
+sysupgrade. Runtime-generated FRP configuration is stored in the temporary
+`/var/lib/51ddns` directory and is re-created after reboot.
 
 ## Packages
 
