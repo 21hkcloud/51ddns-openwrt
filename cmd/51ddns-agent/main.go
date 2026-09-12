@@ -181,7 +181,7 @@ func load() (*agent, error) {
 		statusPath:         *statusPath,
 		refresh:            refresh,
 		maxActiveRelays:    maxActiveRelays,
-		httpClient:         &http.Client{Timeout: 15 * time.Second},
+		httpClient:         newControlHTTPClient(),
 	}, nil
 }
 
@@ -389,8 +389,8 @@ func (a *agent) reportIP(ctx context.Context) error {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
 		return fmt.Errorf("control plane returned HTTP %d", response.StatusCode)
 	}
-	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
-	return nil
+	_, err = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+	return err
 }
 
 func globalIPv6() string {
