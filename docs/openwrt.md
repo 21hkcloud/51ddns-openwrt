@@ -15,6 +15,38 @@ configuration assigned by the 51DDNS control plane.
 The LuCI package is maintained and reviewed separately in the official
 `openwrt/luci` feed. It is not included in the agent source archive.
 
+### OpenWrt 24.10 and iStore
+
+OpenWrt 24.10's official frpc 0.51.3 cannot read the TOML configuration used
+by the agent. Agent 0.6.4-r2 requires frpc 0.52.0 or later. Before installing
+through iStore on 24.10, add the signed 51DDNS feed that supplies a compatible
+frpc. The current 24.10.8 feed provides Agent 0.6.4-r2 and frpc 0.70.0-r3 for
+x86_64, aarch64_cortex-a53 and mipsel_24kc.
+
+The official installer below verifies the pinned public key, adds the signed
+feed, refreshes opkg and installs Agent and LuCI. Afterwards iStore shows the
+installed application. Run it on the router as root after checking that the
+router has Internet access and runs OpenWrt 24.10.x:
+
+中文说明：OpenWrt 24.10 自带的旧版 frpc 不兼容。先在路由器 SSH 中以 root
+运行以下官方脚本；脚本会校验公钥、添加签名源，并同时安装 51DDNS 和 LuCI。
+安装完成后再到 iStore 查看应用，无需强制忽略依赖。
+
+```sh
+uclient-fetch -q -O /tmp/51ddns-repository.sh \
+  https://www.51ddns.com/downloads/openwrt/install-repository.sh
+sh /tmp/51ddns-repository.sh
+```
+
+Check the installed versions before entering an account token:
+
+```sh
+opkg list-installed | grep -E '^(51ddns-agent|frpc|luci-app-51ddns) '
+```
+
+Do not force dependencies or install an APK on an IPK-based system. If the
+signed feed is unavailable, wait for it rather than installing the old frpc.
+
 ## Install
 
 After the packages are available in the configured feed, install them with the
