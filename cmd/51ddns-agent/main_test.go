@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -139,6 +140,88 @@ func TestActivateStoresAssignedDeviceID(t *testing.T) {
 	if service.deviceID != assigned || string(content) != assigned+"\n" {
 		t.Fatalf("assigned device id was not persisted: %q %q", service.deviceID, content)
 	}
+}
+
+func TestActivateRecordsQuotaAndClearsItAfterSuccess(t *testing.T) {
+	const assigned = "00000000-0000-4000-8000-000000000009"
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		attempts++
+		if attempts == 1 {
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"error":{"code":"device_quota_exceeded","message":"private response marker"}}`))
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"device_id": assigned})
+	}))
+	defer server.Close()
+
+	directory := t.TempDir()
+	service := &agent{
+		apiURL: server.URL, deviceToken: "account-token",
+		deviceIDFile: filepath.Join(directory, "device.id"),
+		statusPath:   filepath.Join(directory, "status.json"), httpClient: server.Client(),
+	}
+	if err := service.activate(context.Background()); err == nil || err.Error() != "control plane activation rejected: device quota exceeded" {
+		t.Fatalf("unexpected quota error: %v", err)
+	}
+	status := readTestLocalStatus(t, service.statusPath)
+	if status.Online || status.ErrorCode != deviceQuotaErrorCode || status.UpdatedAt.IsZero() {
+		t.Fatalf("unexpected quota status: %#v", status)
+	}
+	content, err := os.ReadFile(service.statusPath)
+	if err != nil || bytes.Contains(content, []byte("private response marker")) {
+		t.Fatalf("response details leaked into local status: %v", err)
+	}
+	if err := service.activate(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	status = readTestLocalStatus(t, service.statusPath)
+	if status.Online || status.ErrorCode != "" || status.DeviceID != assigned {
+		t.Fatalf("quota status was not cleared: %#v", status)
+	}
+}
+
+func TestActivateDoesNotReportQuotaForOtherFailures(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		code int
+		body string
+	}{
+		{"other conflict", http.StatusConflict, `{"error":{"code":"invalid_token","message":"private response marker"}}`},
+		{"quota code with wrong status", http.StatusInternalServerError, `{"error":{"code":"device_quota_exceeded","message":"private response marker"}}`},
+		{"invalid response", http.StatusConflict, `not-json-private-response-marker`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(test.code)
+				_, _ = w.Write([]byte(test.body))
+			}))
+			defer server.Close()
+			statusPath := filepath.Join(t.TempDir(), "status.json")
+			service := &agent{apiURL: server.URL, deviceToken: "account-token", statusPath: statusPath, httpClient: server.Client()}
+			err := service.activate(context.Background())
+			if err == nil || !strings.Contains(err.Error(), "HTTP ") || strings.Contains(err.Error(), "private") {
+				t.Fatalf("unexpected activation error: %v", err)
+			}
+			if status := readTestLocalStatus(t, statusPath); status.ErrorCode != "" || status.Online {
+				t.Fatalf("unexpected local status: %#v", status)
+			}
+		})
+	}
+}
+
+func readTestLocalStatus(t *testing.T, path string) localStatus {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var status localStatus
+	if err := json.Unmarshal(content, &status); err != nil {
+		t.Fatal(err)
+	}
+	return status
 }
 
 func TestLoadOrCreateInstallationIDIsStable(t *testing.T) {

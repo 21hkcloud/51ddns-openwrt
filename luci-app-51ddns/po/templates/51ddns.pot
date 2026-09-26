@@ -44,6 +44,12 @@ msgstr ""
 msgid "Current plan"
 msgstr ""
 
+msgid "Device quota"
+msgstr ""
+
+msgid "Device limit reached. Upgrade or purchase a plan, or permanently delete an unused device and retry."
+msgstr ""
+
 #: applications/luci-app-51ddns/htdocs/luci-static/resources/view/51ddns/overview.js:129
 msgid "Enable"
 msgstr ""
@@ -56,6 +62,9 @@ msgstr ""
 
 #: applications/luci-app-51ddns/htdocs/luci-static/resources/view/51ddns/overview.js:60
 msgid "Expired"
+msgstr ""
+
+msgid "Go to device plans"
 msgstr ""
 
 #: applications/luci-app-51ddns/htdocs/luci-static/resources/view/51ddns/overview.js:111

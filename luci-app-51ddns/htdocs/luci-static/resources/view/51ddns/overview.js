@@ -73,6 +73,15 @@ function remainingState(value) {
 	};
 }
 
+function quotaExceeded(local, running) {
+	if (!running || local?.error_code !== 'device_quota_exceeded')
+		return false;
+
+	const updatedAt = Date.parse(local.updated_at || '');
+	const age = Date.now() - updatedAt;
+	return Number.isFinite(age) && age >= -30000 && age <= 120000;
+}
+
 return view.extend({
 	load() {
 		return Promise.all([
@@ -88,6 +97,7 @@ return view.extend({
 		const local = data[2] || {};
 		const info = data[3] || {};
 		const plan = local.plan || null;
+		const quotaBlocked = quotaExceeded(local, state.running);
 		const remaining = remainingState(plan?.expires_at);
 		const map = new form.Map(
 			'51ddns',
@@ -104,6 +114,14 @@ return view.extend({
 
 		const version = section.option(form.DummyValue, '_version', _('Agent version'));
 		version.cfgvalue = () => info.version || _('Unavailable');
+
+		if (quotaBlocked) {
+			const quota = section.option(form.DummyValue, '_quota', _('Device quota'));
+			quota.rawhtml = true;
+			quota.cfgvalue = () =>
+				`<strong style="color:#b91c1c">${_('Device limit reached. Upgrade or purchase a plan, or permanently delete an unused device and retry.')}</strong> ` +
+				`<a href="https://console.51ddns.com/console#/plans" target="_blank" rel="noopener noreferrer" style="color:#b91c1c">${_('Go to device plans')}</a>`;
+		}
 
 		const planName = section.option(form.DummyValue, '_plan_name', _('Current plan'));
 		planName.cfgvalue = () => plan?.product_name || _('No active plan');
