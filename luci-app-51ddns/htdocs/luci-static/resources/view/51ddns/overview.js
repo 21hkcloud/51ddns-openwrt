@@ -78,7 +78,8 @@ function quotaExceeded(local, running) {
 		return false;
 
 	const updatedAt = Date.parse(local.updated_at || '');
-	const age = Date.now() - updatedAt;
+	const routerTime = Date.parse(local.router_time || '');
+	const age = (Number.isFinite(routerTime) ? routerTime : Date.now()) - updatedAt;
 	return Number.isFinite(age) && age >= -30000 && age <= 120000;
 }
 

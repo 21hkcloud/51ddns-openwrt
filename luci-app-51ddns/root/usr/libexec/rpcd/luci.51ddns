@@ -34,6 +34,8 @@ print_status() {
 	if [ "$status_error_code" = 'device_quota_exceeded' ] && [ -n "$status_updated_at" ]; then
 		json_add_string error_code "$status_error_code"
 		json_add_string updated_at "$status_updated_at"
+		status_router_time="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
+		[ -n "$status_router_time" ] && json_add_string router_time "$status_router_time"
 	fi
 	json_dump
 	json_cleanup

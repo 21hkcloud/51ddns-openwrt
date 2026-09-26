@@ -35,6 +35,18 @@ test('recent device quota renders red guidance and the real plans link', () => {
 	assert.match(quota.cfgvalue(), /console\.51ddns\.com\/console#\/plans/);
 });
 
+test('quota recency uses router time when the browser clock differs', () => {
+	const updated_at = '2026-01-01T00:00:00Z';
+	assert.equal(renderOptions({
+		error_code: 'device_quota_exceeded', updated_at,
+		router_time: '2026-01-01T00:00:30Z',
+	}).some(option => option.id === '_quota'), true);
+	assert.equal(renderOptions({
+		error_code: 'device_quota_exceeded', updated_at,
+		router_time: '2026-01-01T00:02:01Z',
+	}).some(option => option.id === '_quota'), false);
+});
+
 test('quota guidance is suppressed for stale, unrelated, or stopped status', () => {
 	const recent = new Date().toISOString();
 	for (const [local, running] of [
