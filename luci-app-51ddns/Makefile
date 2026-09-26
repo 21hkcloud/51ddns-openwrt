@@ -6,7 +6,7 @@ LUCI_DESCRIPTION:=Configure and monitor the 51DDNS remote access agent.
 LUCI_DEPENDS:=+luci-base +51ddns-agent
 LUCI_PKGARCH:=all
 
-PKG_VERSION:=0.1.4
+PKG_VERSION:=0.1.5
 PKG_RELEASE:=1
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=Jinshuan Wang <21hkcloud@gmail.com>
