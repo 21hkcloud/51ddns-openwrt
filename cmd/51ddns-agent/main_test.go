@@ -211,6 +211,23 @@ func TestActivateDoesNotReportQuotaForOtherFailures(t *testing.T) {
 	}
 }
 
+func TestActivateClearsQuotaAfterNetworkFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	address := server.URL
+	server.Close()
+	service := &agent{
+		apiURL: address, deviceToken: "account-token",
+		statusPath: filepath.Join(t.TempDir(), "status.json"), httpClient: server.Client(),
+	}
+	service.recordActivationStatus(deviceQuotaErrorCode)
+	if err := service.activate(context.Background()); err == nil {
+		t.Fatal("expected network error")
+	}
+	if status := readTestLocalStatus(t, service.statusPath); status.ErrorCode != "" || status.Online {
+		t.Fatalf("stale quota status was not cleared: %#v", status)
+	}
+}
+
 func readTestLocalStatus(t *testing.T, path string) localStatus {
 	t.Helper()
 	content, err := os.ReadFile(path)

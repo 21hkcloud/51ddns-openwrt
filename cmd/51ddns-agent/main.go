@@ -62,6 +62,8 @@ type localStatus struct {
 
 const deviceQuotaErrorCode = "device_quota_exceeded"
 
+var errDeviceQuotaExceeded = errors.New("control plane activation rejected: device quota exceeded")
+
 type managedProcess struct {
 	relay string
 	cmd   *exec.Cmd
@@ -190,6 +192,7 @@ func load() (*agent, error) {
 
 func (a *agent) run(ctx context.Context) error {
 	var last []relayConfiguration
+	a.recordActivationStatus("")
 	for ctx.Err() == nil {
 		if a.deviceID == "" {
 			if err := a.activate(ctx); err != nil {
@@ -256,7 +259,12 @@ func (a *agent) run(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (a *agent) activate(ctx context.Context) error {
+func (a *agent) activate(ctx context.Context) (activationErr error) {
+	defer func() {
+		if !errors.Is(activationErr, errDeviceQuotaExceeded) {
+			a.recordActivationStatus("")
+		}
+	}()
 	payload, err := json.Marshal(map[string]string{
 		"installation_id": a.installationID,
 		"platform":        platformName(),
@@ -289,9 +297,8 @@ func (a *agent) activate(ctx context.Context) error {
 		}
 		if failure.Error.Code == deviceQuotaErrorCode {
 			a.recordActivationStatus(deviceQuotaErrorCode)
-			return errors.New("control plane activation rejected: device quota exceeded")
+			return errDeviceQuotaExceeded
 		}
-		a.recordActivationStatus("")
 		return fmt.Errorf("control plane activation returned HTTP %d", response.StatusCode)
 	}
 	var result struct {
@@ -310,7 +317,6 @@ func (a *agent) activate(ctx context.Context) error {
 		return fmt.Errorf("save assigned device id: %w", err)
 	}
 	a.deviceID = result.DeviceID
-	a.recordActivationStatus("")
 	slog.Info("device activated", "device_id", result.DeviceID)
 	return nil
 }
