@@ -102,8 +102,8 @@ return view.extend({
 		const plan = local.plan || null;
 		const quotaBlocked = quotaExceeded(local, state.running);
 		const remaining = remainingState(plan?.expires_at);
-		const configuredToken = uci.get('51ddns', 'main', 'account_token') || '';
 		const configuredDeviceID = uci.get('51ddns', 'main', 'device_id') || '';
+		const savedDeviceID = local.identity_state === 'saved' && deviceIDPattern.test(local.saved_device_id || '') ? local.saved_device_id : '';
 		const map = new form.Map(
 			'51ddns',
 			_('51DDNS Remote Access'),
@@ -124,7 +124,7 @@ return view.extend({
 			const quota = section.option(form.DummyValue, '_quota', _('Device quota'));
 			quota.rawhtml = true;
 			quota.cfgvalue = () =>
-				`<strong style="color:#b91c1c">${_('Device limit reached. Upgrade or purchase a plan, or permanently delete an unused device and retry.')}</strong> ` +
+				`<strong style="color:#b91c1c">${_('Device limit reached. If this router already has a device record in the console, use its exact device ID to continue binding. Upgrade or purchase a plan only when adding another device.')}</strong> ` +
 				`<a href="https://console.51ddns.com/console#/plans" target="_blank" rel="noopener noreferrer" style="color:#b91c1c">${_('Go to device plans')}</a>`;
 		}
 
@@ -163,12 +163,20 @@ return view.extend({
 		deviceID.rmempty = true;
 		deviceID.description = _('Paste the exact UUID of the device created in the console. Leaving this blank does not clear a saved router ID. Do not change the ID of a router already connected to an account.');
 		deviceID.validate = (_sectionId, value) => {
+			// Stopping the service must remain possible with a stale configured ID.
+			if (enabled.formvalue(_sectionId) === enabled.disabled)
+				return true;
 			if (value && !deviceIDPattern.test(value))
 				return _('Enter a valid device UUID from the console.');
-			if (value !== configuredDeviceID && configuredDeviceID)
+			const matchesSaved = value && savedDeviceID && value.toLowerCase() === savedDeviceID.toLowerCase();
+			if (value !== configuredDeviceID && configuredDeviceID && !matchesSaved)
 				return _('This router already has a configured device ID. Changing it requires a separate migration.');
-			if (value && (configuredToken || plan) && !configuredDeviceID && !quotaBlocked)
-				return _('This router may already have a saved device ID. Add a pre-created ID only on first setup or after an active device quota error.');
+			if (value && savedDeviceID && value.toLowerCase() !== savedDeviceID.toLowerCase())
+				return _('This router already has a saved device ID. Changing it requires a separate migration.');
+			if (value && !savedDeviceID && local.identity_state !== 'empty')
+				return _('The saved device identity could not be verified. Refresh the page before setting a device ID.');
+			if (value && !savedDeviceID && state.running)
+				return _('Disable the agent and save first. Then enter the existing device ID and enable it again.');
 			return true;
 		};
 		// A blank optional field must never remove an existing explicit ID.

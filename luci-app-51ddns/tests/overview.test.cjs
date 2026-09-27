@@ -12,7 +12,7 @@ function renderOptions(local, running = true, config = {}) {
 		section() {
 			return {
 				option(_kind, id) {
-					const option = { id, validate: () => true };
+					const option = { id, disabled: '0', formvalue: () => config[id], validate: () => true };
 					options.push(option);
 					return option;
 				},
@@ -25,7 +25,7 @@ function renderOptions(local, running = true, config = {}) {
 		{ extend: value => value }, form, { declare: () => () => ({}) },
 		{ get: (_package, _section, name) => config[name] }, {}, value => value, () => '', {},
 	);
-	return page.render([{}, { '51ddns-agent': { instances: { main: { running } } } }, local, {}]);
+	return page.render([{}, { '51ddns-agent': { instances: { main: { running } } } }, { identity_state: 'empty', ...local }, {}]);
 }
 
 test('recent device quota renders red guidance and the real plans link', () => {
@@ -35,6 +35,8 @@ test('recent device quota renders red guidance and the real plans link', () => {
 	assert.equal(quota.rawhtml, true);
 	assert.match(quota.cfgvalue(), /color:#b91c1c/);
 	assert.match(quota.cfgvalue(), /console\.51ddns\.com\/console#\/plans/);
+	assert.match(quota.cfgvalue(), /already has a device record.*exact device ID.*Upgrade or purchase a plan only when adding another device/);
+	assert.doesNotMatch(quota.cfgvalue(), /delete/i);
 });
 
 test('quota recency uses router time when the browser clock differs', () => {
@@ -62,7 +64,7 @@ test('quota guidance is suppressed for stale, unrelated, or stopped status', () 
 });
 
 test('new router can use a pre-created UUID or leave it blank for automatic registration', () => {
-	const options = renderOptions({});
+	const options = renderOptions({}, false);
 	const deviceID = options.find(option => option.id === 'device_id');
 	assert.ok(deviceID);
 	assert.equal(deviceID.rmempty, true);
@@ -78,7 +80,7 @@ test('new router can use a pre-created UUID or leave it blank for automatic regi
 test('token correction and rotation retain an existing explicit device ID', () => {
 	const tokenValue = 'private-account-token';
 	const existingID = '00000000-0000-4000-8000-000000000001';
-	const options = renderOptions({}, true, { account_token: tokenValue, device_id: existingID });
+	const options = renderOptions({ identity_state: 'saved', saved_device_id: existingID }, true, { account_token: tokenValue, device_id: existingID });
 	const token = options.find(option => option.id === 'account_token');
 	const deviceID = options.find(option => option.id === 'device_id');
 	assert.equal(token.password, true);
@@ -102,23 +104,78 @@ test('a mistyped first token can be corrected without an assigned device ID', ()
 });
 
 test('an automatically assigned ID remains protected when UCI has no explicit ID', () => {
-	const options = renderOptions({}, true, { account_token: 'private-account-token', device_id: '' });
+	const options = renderOptions({ identity_state: 'saved', saved_device_id: '00000000-0000-4000-8000-000000000001' }, true, { account_token: 'private-account-token', device_id: '' });
 	const deviceID = options.find(option => option.id === 'device_id');
 	assert.equal(deviceID.validate('main', ''), true);
 	assert.match(deviceID.validate('main', '00000000-0000-4000-8000-000000000002'), /saved device ID/);
 });
 
-test('an existing plan also protects the identity when the token field is empty', () => {
-	const options = renderOptions({ plan: { product_name: 'test plan' } });
+test('unavailable identity prevents explicitly assigning an ID', () => {
+	const options = renderOptions({ identity_state: 'unavailable', plan: { product_name: 'test plan' } });
 	const deviceID = options.find(option => option.id === 'device_id');
-	assert.match(deviceID.validate('main', '00000000-0000-4000-8000-000000000002'), /saved device ID/);
+	assert.match(deviceID.validate('main', '00000000-0000-4000-8000-000000000002'), /could not be verified/);
+	assert.equal(deviceID.validate('main', ''), true);
 });
 
-test('fresh quota error allows entering a pre-created device ID', () => {
+test('stop the quota retry loop before assigning a pre-created identity', () => {
 	const now = new Date().toISOString();
 	const options = renderOptions({ error_code: 'device_quota_exceeded', updated_at: now }, true, {
 		account_token: 'private-account-token', device_id: '',
 	});
 	const deviceID = options.find(option => option.id === 'device_id');
-	assert.equal(deviceID.validate('main', '00000000-0000-4000-8000-000000000002'), true);
+	assert.match(deviceID.validate('main', '00000000-0000-4000-8000-000000000002'), /Disable the agent/);
+	const stopped = renderOptions({}, false, { account_token: 'private-account-token', device_id: '' });
+	assert.equal(stopped.find(option => option.id === 'device_id').validate('main', '00000000-0000-4000-8000-000000000002'), true);
+});
+
+test('a quota snapshot never permits overwriting a saved identity', () => {
+	const savedID = '00000000-0000-4000-8000-000000000001';
+	const options = renderOptions({
+		identity_state: 'saved', saved_device_id: savedID,
+		error_code: 'device_quota_exceeded', updated_at: new Date().toISOString(),
+	});
+	const deviceID = options.find(option => option.id === 'device_id');
+	assert.equal(deviceID.validate('main', savedID), true);
+	assert.equal(deviceID.validate('main', ''), true);
+	assert.match(deviceID.validate('main', '00000000-0000-4000-8000-000000000002'), /saved device ID/);
+});
+
+test('older or malformed RPC responses fail closed for an explicit ID', () => {
+	for (const local of [{ identity_state: undefined }, { identity_state: 'saved', saved_device_id: 'invalid' }]) {
+		const options = renderOptions(local);
+		const deviceID = options.find(option => option.id === 'device_id');
+		assert.match(deviceID.validate('main', '00000000-0000-4000-8000-000000000002'), /could not be verified/);
+	}
+});
+
+test('a stale explicit ID can converge to the verified saved identity without replacing it', () => {
+	const savedID = '00000000-0000-4000-8000-000000000001';
+	const configuredID = '00000000-0000-4000-8000-000000000002';
+	const options = renderOptions({ identity_state: 'saved', saved_device_id: savedID }, true, {
+		enabled: '1', device_id: configuredID,
+	});
+	const deviceID = options.find(option => option.id === 'device_id');
+	assert.equal(deviceID.validate('main', savedID), true);
+	assert.match(deviceID.validate('main', configuredID), /saved device ID/);
+	assert.match(deviceID.validate('main', '00000000-0000-4000-8000-000000000003'), /separate migration/);
+	assert.match(deviceID.validate('main', ''), /separate migration/);
+});
+
+test('disabling remains available with conflicting, invalid, or unverified identity', () => {
+	const configuredID = '00000000-0000-4000-8000-000000000002';
+	for (const local of [
+		{ identity_state: 'saved', saved_device_id: '00000000-0000-4000-8000-000000000001' },
+		{ identity_state: 'unavailable' },
+	]) {
+		const options = renderOptions(local, true, { enabled: '1', device_id: configuredID });
+		const deviceID = options.find(option => option.id === 'device_id');
+		const enabled = options.find(option => option.id === 'enabled');
+		enabled.formvalue = () => '0';
+		assert.equal(deviceID.validate('main', configuredID), true);
+		assert.equal(deviceID.validate('main', 'invalid'), true);
+		assert.equal(deviceID.validate('main', ''), true);
+		enabled.formvalue = () => '1';
+		assert.notEqual(deviceID.validate('main', configuredID), true);
+		assert.match(deviceID.validate('main', 'invalid'), /valid device UUID/);
+	}
 });

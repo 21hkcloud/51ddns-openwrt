@@ -12,8 +12,8 @@ msgstr ""
 msgid "Device quota"
 msgstr "设备额度"
 
-msgid "Device limit reached. Upgrade or purchase a plan, or permanently delete an unused device and retry."
-msgstr "设备额度已用完，请升级或购买设备套餐，或永久删除不再使用的设备后重试。"
+msgid "Device limit reached. If this router already has a device record in the console, use its exact device ID to continue binding. Upgrade or purchase a plan only when adding another device."
+msgstr "设备额度已用完。若控制台已有这台路由器的设备记录，请填写该记录的准确设备 ID 继续绑定；确需新增设备时，再升级或购买套餐。"
 
 msgid "Go to device plans"
 msgstr "前往设备套餐"
@@ -36,5 +36,11 @@ msgstr "请输入控制台中有效的设备 UUID。"
 msgid "This router already has a configured device ID. Changing it requires a separate migration."
 msgstr "此路由器已配置设备 ID。更换身份须另行迁移。"
 
-msgid "This router may already have a saved device ID. Add a pre-created ID only on first setup or after an active device quota error."
-msgstr "此路由器可能已有保存的设备 ID。仅在首次配置或出现当前有效的设备额度错误后填写预建 ID。"
+msgid "This router already has a saved device ID. Changing it requires a separate migration."
+msgstr "此路由器已保存设备 ID。更换身份须另行迁移。"
+
+msgid "The saved device identity could not be verified. Refresh the page before setting a device ID."
+msgstr "无法核实已保存的设备身份。请刷新页面后再设置设备 ID。"
+
+msgid "Disable the agent and save first. Then enter the existing device ID and enable it again."
+msgstr "请先取消启用并保存，再填写已有设备 ID 并重新启用。"

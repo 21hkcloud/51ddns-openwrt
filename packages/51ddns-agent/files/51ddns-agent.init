@@ -11,10 +11,42 @@ SERVICE_GROUP="ddns51"
 RUNTIME_DIR="/var/lib/51ddns"
 SECRET_DIR="/etc/51ddns"
 
+check_device_identity() {
+	local requested="$1" saved
+	device_identity_saved=0
+	[ -n "$requested" ] || return 0
+	if [ "${#requested}" -ne 36 ] || ! printf '%s\n' "$requested" | grep -Eq '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'; then
+		logger -t 51ddns-agent "invalid configured device ID; service not started"
+		return 1
+	fi
+	if [ -L "$SECRET_DIR/device.id" ] || { [ -e "$SECRET_DIR/device.id" ] && [ ! -f "$SECRET_DIR/device.id" ]; }; then
+		logger -t 51ddns-agent "saved device identity is not a regular file; service not started"
+		return 1
+	fi
+	saved=''
+	if [ -e "$SECRET_DIR/device.id" ] && ! saved="$(cat "$SECRET_DIR/device.id")"; then
+		logger -t 51ddns-agent "saved device identity cannot be read; service not started"
+		return 1
+	fi
+	if [ -z "$saved" ]; then
+		# Keep procd's JSON namespace isolated from this service definition.
+		if (procd_running 51ddns-agent 51ddns-agent); then
+			logger -t 51ddns-agent "stop the agent before assigning a pre-created device ID"
+			return 1
+		fi
+		return 0
+	fi
+	if [ "$(printf '%s' "$saved" | tr 'A-F' 'a-f')" != "$(printf '%s' "$requested" | tr 'A-F' 'a-f')" ]; then
+		logger -t 51ddns-agent "configured device ID conflicts with saved identity; separate migration required"
+		return 1
+	fi
+	device_identity_saved=1
+}
+
 start_service() {
 	local enabled control_url account_token device_id refresh_seconds
 	local start_delay_seconds max_active_relays oem_voucher_file
-	local go_memory_limit
+	local go_memory_limit device_identity_saved
 
 	if ! uci_validate_section 51ddns agent main \
 		'enabled:bool:0' \
@@ -28,12 +60,12 @@ start_service() {
 		logger -t 51ddns-agent "invalid configuration; service not started"
 		return 1
 	fi
-
 	[ "$enabled" -eq 1 ] || return 0
 	if [ -z "$account_token" ]; then
 		logger -t 51ddns-agent "account token is not configured; service not started"
 		return 1
 	fi
+	check_device_identity "$device_id" || return 1
 
 	go_memory_limit='128MiB'
 	case "$(uname -m 2>/dev/null)" in
@@ -48,7 +80,7 @@ start_service() {
 	chmod 0700 "$SECRET_DIR" "$RUNTIME_DIR"
 	umask 077
 	printf '%s\n' "$account_token" > "$SECRET_DIR/device.token"
-	if [ -n "$device_id" ]; then
+	if [ -n "$device_id" ] && [ "$device_identity_saved" -eq 0 ]; then
 		printf '%s\n' "$device_id" > "$SECRET_DIR/device.id"
 	elif [ ! -e "$SECRET_DIR/device.id" ]; then
 		: > "$SECRET_DIR/device.id"
