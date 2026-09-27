@@ -83,6 +83,8 @@ function quotaExceeded(local, running) {
 	return Number.isFinite(age) && age >= -30000 && age <= 120000;
 }
 
+const deviceIDPattern = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+
 return view.extend({
 	load() {
 		return Promise.all([
@@ -100,10 +102,12 @@ return view.extend({
 		const plan = local.plan || null;
 		const quotaBlocked = quotaExceeded(local, state.running);
 		const remaining = remainingState(plan?.expires_at);
+		const configuredToken = uci.get('51ddns', 'main', 'account_token') || '';
+		const configuredDeviceID = uci.get('51ddns', 'main', 'device_id') || '';
 		const map = new form.Map(
 			'51ddns',
 			_('51DDNS Remote Access'),
-			_('Enter the account token once to register this router automatically. Device identity and relay settings are managed by the 51DDNS control plane.'),
+			_('Enter your account token. For a device already created in the console, enter its exact device UUID below. Leave the ID blank for automatic registration only when this router has no saved device ID and your account has a free device slot.'),
 		);
 		const section = map.section(form.NamedSection, 'main', 'agent', _('Quick setup'));
 		section.addremove = false;
@@ -153,7 +157,22 @@ return view.extend({
 		token.password = true;
 		token.rmempty = false;
 		token.placeholder = '51d_...';
-		token.description = _('Copy the token from the 51DDNS console. All devices in the same account share this token.');
+		token.description = _('Copy the token from the 51DDNS console. Updating it keeps the saved device ID. A token from another account will be rejected until the device identity is migrated.');
+
+		const deviceID = section.option(form.Value, 'device_id', _('Existing device ID (optional)'));
+		deviceID.rmempty = true;
+		deviceID.description = _('Paste the exact UUID of the device created in the console. Leaving this blank does not clear a saved router ID. Do not change the ID of a router already connected to an account.');
+		deviceID.validate = (_sectionId, value) => {
+			if (value && !deviceIDPattern.test(value))
+				return _('Enter a valid device UUID from the console.');
+			if (value !== configuredDeviceID && configuredDeviceID)
+				return _('This router already has a configured device ID. Changing it requires a separate migration.');
+			if (value && (configuredToken || plan) && !configuredDeviceID && !quotaBlocked)
+				return _('This router may already have a saved device ID. Add a pre-created ID only on first setup or after an active device quota error.');
+			return true;
+		};
+		// A blank optional field must never remove an existing explicit ID.
+		deviceID.remove = () => {};
 
 		return map.render();
 	},

@@ -17,3 +17,24 @@ msgstr "设备额度已用完，请升级或购买设备套餐，或永久删除
 
 msgid "Go to device plans"
 msgstr "前往设备套餐"
+
+msgid "Enter your account token. For a device already created in the console, enter its exact device UUID below. Leave the ID blank for automatic registration only when this router has no saved device ID and your account has a free device slot."
+msgstr "请输入账号令牌。若已在控制台创建设备，请在下方填写该设备准确的 UUID。只有路由器尚无已保存的设备 ID 且账号有空闲设备席位时，留空才会自动注册。"
+
+msgid "Copy the token from the 51DDNS console. Updating it keeps the saved device ID. A token from another account will be rejected until the device identity is migrated."
+msgstr "从 51DDNS 控制台复制令牌。更新令牌会保留已保存的设备 ID；其他账号的令牌会被拒绝，须另行迁移设备身份。"
+
+msgid "Existing device ID (optional)"
+msgstr "已有设备 ID（可选）"
+
+msgid "Paste the exact UUID of the device created in the console. Leaving this blank does not clear a saved router ID. Do not change the ID of a router already connected to an account."
+msgstr "粘贴在控制台创建的设备的准确 UUID。留空不会清除路由器已保存的 ID。已连接账号的路由器请勿在此更改 ID。"
+
+msgid "Enter a valid device UUID from the console."
+msgstr "请输入控制台中有效的设备 UUID。"
+
+msgid "This router already has a configured device ID. Changing it requires a separate migration."
+msgstr "此路由器已配置设备 ID。更换身份须另行迁移。"
+
+msgid "This router may already have a saved device ID. Add a pre-created ID only on first setup or after an active device quota error."
+msgstr "此路由器可能已有保存的设备 ID。仅在首次配置或出现当前有效的设备额度错误后填写预建 ID。"

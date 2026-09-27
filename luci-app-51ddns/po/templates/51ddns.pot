@@ -34,10 +34,9 @@ msgstr ""
 msgid "Console"
 msgstr ""
 
-#: applications/luci-app-51ddns/htdocs/luci-static/resources/view/51ddns/overview.js:137
 msgid ""
-"Copy the token from the 51DDNS console. All devices in the same account "
-"share this token."
+"Copy the token from the 51DDNS console. Updating it keeps the saved device "
+"ID. A token from another account will be rejected until the device identity is migrated."
 msgstr ""
 
 #: applications/luci-app-51ddns/htdocs/luci-static/resources/view/51ddns/overview.js:108
@@ -56,8 +55,15 @@ msgstr ""
 
 #: applications/luci-app-51ddns/htdocs/luci-static/resources/view/51ddns/overview.js:95
 msgid ""
-"Enter the account token once to register this router automatically. Device "
-"identity and relay settings are managed by the 51DDNS control plane."
+"Enter your account token. For a device already created in the console, enter "
+"its exact device UUID below. Leave the ID blank for automatic registration "
+"only when this router has no saved device ID and your account has a free device slot."
+msgstr ""
+
+msgid "Enter a valid device UUID from the console."
+msgstr ""
+
+msgid "Existing device ID (optional)"
 msgstr ""
 
 #: applications/luci-app-51ddns/htdocs/luci-static/resources/view/51ddns/overview.js:60
@@ -87,6 +93,9 @@ msgstr ""
 msgid "Not running"
 msgstr ""
 
+msgid "Paste the exact UUID of the device created in the console. Leaving this blank does not clear a saved router ID. Do not change the ID of a router already connected to an account."
+msgstr ""
+
 #: applications/luci-app-51ddns/htdocs/luci-static/resources/view/51ddns/overview.js:124
 msgid "Open 51DDNS Console"
 msgstr ""
@@ -110,6 +119,12 @@ msgstr ""
 
 #: applications/luci-app-51ddns/htdocs/luci-static/resources/view/51ddns/overview.js:114
 msgid "Time remaining"
+msgstr ""
+
+msgid "This router already has a configured device ID. Changing it requires a separate migration."
+msgstr ""
+
+msgid "This router may already have a saved device ID. Add a pre-created ID only on first setup or after an active device quota error."
 msgstr ""
 
 #: applications/luci-app-51ddns/htdocs/luci-static/resources/view/51ddns/overview.js:106
