@@ -161,7 +161,7 @@ return view.extend({
 
 		const deviceID = section.option(form.Value, 'device_id', _('Existing device ID (optional)'));
 		deviceID.rmempty = true;
-		deviceID.description = _('Paste the exact UUID of the device created in the console. Leaving this blank does not clear a saved router ID. Do not change the ID of a router already connected to an account.');
+		deviceID.description = _('Paste the exact UUID of the device created in the console. If verification failed before this router saved an identity, stop the agent to correct or clear this field. A saved router ID is never cleared here.');
 		deviceID.validate = (_sectionId, value) => {
 			// Stopping the service must remain possible with a stale configured ID.
 			if (enabled.formvalue(_sectionId) === enabled.disabled)
@@ -169,7 +169,7 @@ return view.extend({
 			if (value && !deviceIDPattern.test(value))
 				return _('Enter a valid device UUID from the console.');
 			const matchesSaved = value && savedDeviceID && value.toLowerCase() === savedDeviceID.toLowerCase();
-			if (value !== configuredDeviceID && configuredDeviceID && !matchesSaved)
+			if (value !== configuredDeviceID && configuredDeviceID && savedDeviceID && !matchesSaved)
 				return _('This router already has a configured device ID. Changing it requires a separate migration.');
 			if (value && savedDeviceID && value.toLowerCase() !== savedDeviceID.toLowerCase())
 				return _('This router already has a saved device ID. Changing it requires a separate migration.');
@@ -179,8 +179,11 @@ return view.extend({
 				return _('Disable the agent and save first. Then enter the existing device ID and enable it again.');
 			return true;
 		};
-		// A blank optional field must never remove an existing explicit ID.
-		deviceID.remove = () => {};
+		// Only an unbound, stopped router may clear a failed first-bind selection.
+		deviceID.remove = () => {
+			if (!savedDeviceID && local.identity_state === 'empty' && !state.running)
+				uci.unset('51ddns', 'main', 'device_id');
+		};
 
 		return map.render();
 	},

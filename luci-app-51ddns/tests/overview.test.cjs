@@ -7,6 +7,8 @@ const source = fs.readFileSync(path.join(__dirname, '..', 'htdocs', 'luci-static
 
 function renderOptions(local, running = true, config = {}) {
 	const options = [];
+	const removed = [];
+	options.removed = removed;
 	class Map {
 		constructor(_name, _title, description) { options.mapDescription = description; }
 		section() {
@@ -23,7 +25,7 @@ function renderOptions(local, running = true, config = {}) {
 	const form = { Map, NamedSection: class {}, DummyValue: class {}, Button: class {}, Flag: class {}, Value: class {} };
 	const page = new Function('view', 'form', 'rpc', 'uci', 'L', '_', 'N_', 'window', source)(
 		{ extend: value => value }, form, { declare: () => () => ({}) },
-		{ get: (_package, _section, name) => config[name] }, {}, value => value, () => '', {},
+		{ get: (_package, _section, name) => config[name], unset: (...args) => removed.push(args) }, {}, value => value, () => '', {},
 	);
 	return page.render([{}, { '51ddns-agent': { instances: { main: { running } } } }, { identity_state: 'empty', ...local }, {}]);
 }
@@ -70,7 +72,7 @@ test('new router can use a pre-created UUID or leave it blank for automatic regi
 	assert.equal(deviceID.rmempty, true);
 	assert.match(options.mapDescription, /exact device UUID/);
 	assert.match(options.mapDescription, /free device slot/);
-	assert.match(deviceID.description, /Leaving this blank does not clear a saved router ID/);
+	assert.match(deviceID.description, /A saved router ID is never cleared here/);
 	assert.equal(deviceID.validate('main', ''), true);
 	assert.equal(deviceID.validate('main', '00000000-0000-4000-8000-000000000001'), true);
 	assert.match(deviceID.validate('main', 'not-a-uuid'), /valid device UUID/);
@@ -91,6 +93,7 @@ test('token correction and rotation retain an existing explicit device ID', () =
 	assert.match(deviceID.validate('main', ''), /separate migration/);
 	assert.match(deviceID.validate('main', '00000000-0000-4000-8000-000000000002'), /separate migration/);
 	assert.equal(deviceID.remove('main'), undefined);
+	assert.deepEqual(options.removed, []);
 	assert.doesNotMatch(token.description, /private-account-token/);
 	assert.doesNotMatch(deviceID.validate('main', ''), /private-account-token/);
 });
@@ -101,6 +104,20 @@ test('a mistyped first token can be corrected without an assigned device ID', ()
 	const deviceID = options.find(option => option.id === 'device_id');
 	assert.equal(token.validate('main', 'corrected-token'), true);
 	assert.equal(deviceID.validate('main', ''), true);
+});
+
+test('an unverified first-bind ID can be corrected or cleared while stopped', () => {
+	const wrongID = '00000000-0000-4000-8000-000000000001';
+	const correctedID = '00000000-0000-4000-8000-000000000002';
+	const options = renderOptions({ identity_state: 'empty' }, false, { device_id: wrongID });
+	const deviceID = options.find(option => option.id === 'device_id');
+	assert.equal(deviceID.validate('main', correctedID), true);
+	assert.equal(deviceID.validate('main', ''), true);
+	deviceID.remove('main');
+	assert.deepEqual(options.removed, [['51ddns', 'main', 'device_id']]);
+	const running = renderOptions({ identity_state: 'empty' }, true, { device_id: wrongID });
+	running.find(option => option.id === 'device_id').remove('main');
+	assert.deepEqual(running.removed, []);
 });
 
 test('an automatically assigned ID remains protected when UCI has no explicit ID', () => {

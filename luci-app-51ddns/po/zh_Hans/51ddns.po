@@ -27,8 +27,8 @@ msgstr "从 51DDNS 控制台复制令牌。更新令牌会保留已保存的设�
 msgid "Existing device ID (optional)"
 msgstr "已有设备 ID（可选）"
 
-msgid "Paste the exact UUID of the device created in the console. Leaving this blank does not clear a saved router ID. Do not change the ID of a router already connected to an account."
-msgstr "粘贴在控制台创建的设备的准确 UUID。留空不会清除路由器已保存的 ID。已连接账号的路由器请勿在此更改 ID。"
+msgid "Paste the exact UUID of the device created in the console. If verification failed before this router saved an identity, stop the agent to correct or clear this field. A saved router ID is never cleared here."
+msgstr "填写控制台设备的准确 UUID。若核验失败且路由器尚未保存身份，请先停用 Agent，再修改或清空此项；已保存的路由器 ID 不会在此清除。"
 
 msgid "Enter a valid device UUID from the console."
 msgstr "请输入控制台中有效的设备 UUID。"
