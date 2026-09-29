@@ -20,7 +20,7 @@ function fixture(t, content) {
 	return dir.replaceAll('\\', '/');
 }
 
-function start(dir, requested, running = false, enabled = true, verify = true, moveMode = '') {
+function start(dir, requested, running = false, enabled = true, verify = true, moveMode = '', syncFailOn = 0) {
 	return spawnSync(shell, ['-c', `
 . "$DDNS_INIT"
 SECRET_DIR="$DDNS_DIR"
@@ -33,6 +33,11 @@ uci_validate_section() {
 logger() { printf '%s\\n' "$*" >&2; }
 verify_device_identity() { [ "$DDNS_VERIFY" = 'yes' ]; }
 chown() { :; }
+DDNS_SYNC_COUNT=0
+sync() {
+ DDNS_SYNC_COUNT=$((DDNS_SYNC_COUNT + 1))
+ [ "$DDNS_SYNC_COUNT" != "$DDNS_SYNC_FAIL_ON" ]
+}
 mv() {
  if [ "$2" = "$SECRET_DIR/.identity-pending" ] && [ "$DDNS_MOVE_MODE" = 'stage-crash' ]; then
   kill -KILL "$$"
@@ -58,7 +63,7 @@ procd_add_jail_mount() { :; }
 procd_add_jail_mount_rw() { :; }
 procd_close_instance() { :; }
 start_service
-`], { encoding: 'utf8', env: { ...process.env, DDNS_INIT: init.replaceAll('\\', '/'), DDNS_DIR: dir, DDNS_ID: requested, DDNS_RUNNING: running ? 'yes' : 'no', DDNS_ENABLED: enabled ? '1' : '0', DDNS_VERIFY: verify ? 'yes' : 'no', DDNS_MOVE_MODE: moveMode } });
+`], { encoding: 'utf8', env: { ...process.env, DDNS_INIT: init.replaceAll('\\', '/'), DDNS_DIR: dir, DDNS_ID: requested, DDNS_RUNNING: running ? 'yes' : 'no', DDNS_ENABLED: enabled ? '1' : '0', DDNS_VERIFY: verify ? 'yes' : 'no', DDNS_MOVE_MODE: moveMode, DDNS_SYNC_FAIL_ON: String(syncFailOn) } });
 }
 
 test('startup refuses an identity assigned after the page was loaded before writing token or ID', t => {
@@ -117,6 +122,18 @@ test('failure between token and ID replacement restores both old files and never
 	assert.equal(fs.readFileSync(path.join(dir, 'device.id'), 'utf8'), '');
 	assert.equal(fs.readFileSync(path.join(dir, 'device.token'), 'utf8'), 'existing-fixture-token\n');
 	assert.equal(fs.existsSync(path.join(dir, '.identity-pending')), false);
+});
+
+test('failed durability barrier before or after journaling preserves old identity', t => {
+	for (const failOn of [1, 2]) {
+		const dir = fixture(t, '');
+		const result = start(dir, firstID, false, true, true, '', failOn);
+		assert.equal(result.status, 1, `barrier ${failOn}: ${result.stderr}`);
+		assert.doesNotMatch(result.stdout, /started/);
+		assert.equal(fs.readFileSync(path.join(dir, 'device.id'), 'utf8'), '');
+		assert.equal(fs.readFileSync(path.join(dir, 'device.token'), 'utf8'), 'existing-fixture-token\n');
+		assert.equal(fs.existsSync(path.join(dir, '.identity-pending')), false);
+	}
 });
 
 test('interrupted first-bind recovers the old pair before another ownership check', t => {

@@ -74,7 +74,9 @@ finish_identity_transaction() {
 	local pending="$SECRET_DIR/.identity-pending" cleanup="$SECRET_DIR/.identity-cleanup"
 	[ ! -e "$cleanup" ] && [ ! -L "$cleanup" ] || return 1
 	mv "$pending" "$cleanup" || return 1
-	discard_identity_stage "$cleanup"
+	sync || return 1
+	discard_identity_stage "$cleanup" || return 1
+	sync
 }
 
 recover_pending_identity() {
@@ -101,6 +103,7 @@ recover_pending_identity() {
 			return 1
 		fi
 	done
+	sync || return 1
 	finish_identity_transaction || return 1
 	logger -t 51ddns-agent "interrupted identity update recovered; service remains subject to verification"
 }
@@ -155,13 +158,13 @@ write_identity_files() {
 		return 1
 	fi
 	if ! chown "$SERVICE_USER:$SERVICE_GROUP" "$stage/new.token" "$stage/new.id" ||
-		! chmod 0400 "$stage/new.token" || ! chmod 0600 "$stage/new.id" ||
+		! chmod 0400 "$stage/new.token" || ! chmod 0600 "$stage/new.id" || ! sync ||
 		! mv "$stage" "$pending"; then
 		discard_identity_stage "$stage"
 		return 1
 	fi
-	if ! mv -f "$pending/new.token" "$SECRET_DIR/device.token" ||
-		! mv -f "$pending/new.id" "$SECRET_DIR/device.id"; then
+	if ! sync || ! mv -f "$pending/new.token" "$SECRET_DIR/device.token" ||
+		! mv -f "$pending/new.id" "$SECRET_DIR/device.id" || ! sync; then
 		recover_pending_identity
 		return 1
 	fi
