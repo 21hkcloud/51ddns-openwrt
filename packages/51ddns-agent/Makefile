@@ -5,12 +5,13 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=51ddns-agent
 PKG_VERSION:=0.6.5
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
-PKG_SOURCE:=51ddns-openwrt-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://codeload.github.com/21hkcloud/51ddns-openwrt/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=7e3d87a905c9e668a5dec315ad8a143825f1214aa5ba1c85caca87deb6601590
-PKG_BUILD_DIR:=$(BUILD_DIR)/51ddns-openwrt-$(PKG_VERSION)
+PKG_SOURCE_COMMIT:=b54c696662e73ff61f6ac7c4c3ba2957f66ae62b
+PKG_SOURCE:=51ddns-openwrt-$(PKG_SOURCE_COMMIT).tar.gz
+PKG_SOURCE_URL:=https://codeload.github.com/21hkcloud/51ddns-openwrt/tar.gz/$(PKG_SOURCE_COMMIT)?
+PKG_HASH:=3a3417c3166ed9163cf671f55ce14c26f4fc932d28074ba3e64ede5822aeb2ae
+PKG_BUILD_DIR:=$(BUILD_DIR)/51ddns-openwrt-$(PKG_SOURCE_COMMIT)
 
 PKG_MAINTAINER:=Jinshuan Wang <21hkcloud@gmail.com>
 PKG_LICENSE:=Apache-2.0
@@ -22,7 +23,7 @@ PKG_BUILD_FLAGS:=no-mips16
 
 GO_PKG:=github.com/21hkcloud/51ddns-openwrt
 GO_PKG_BUILD_PKG:=$(GO_PKG)/cmd/51ddns-agent
-GO_PKG_LDFLAGS_X:=main.agentVersion=$(PKG_VERSION)
+GO_PKG_LDFLAGS_X:=main.agentVersion=$(PKG_VERSION)-r$(PKG_RELEASE)
 
 include $(INCLUDE_DIR)/package.mk
 include $(TOPDIR)/feeds/packages/lang/golang/golang-package.mk
