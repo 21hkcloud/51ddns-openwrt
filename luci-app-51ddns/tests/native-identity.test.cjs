@@ -20,7 +20,7 @@ function fixture(t, content) {
 	return dir.replaceAll('\\', '/');
 }
 
-function start(dir, requested, running = false, enabled = true) {
+function start(dir, requested, running = false, enabled = true, verify = true) {
 	return spawnSync(shell, ['-c', `
 . "$DDNS_INIT"
 SECRET_DIR="$DDNS_DIR"
@@ -31,6 +31,7 @@ uci_validate_section() {
  start_delay_seconds=0; max_active_relays=0; oem_voucher_file=''
 }
 logger() { printf '%s\\n' "$*" >&2; }
+verify_device_identity() { [ "$DDNS_VERIFY" = 'yes' ]; }
 chown() { :; }
 procd_open_instance() { printf 'started\\n'; }
 procd_running() { [ "$DDNS_RUNNING" = 'yes' ]; }
@@ -40,7 +41,7 @@ procd_add_jail_mount() { :; }
 procd_add_jail_mount_rw() { :; }
 procd_close_instance() { :; }
 start_service
-`], { encoding: 'utf8', env: { ...process.env, DDNS_INIT: init.replaceAll('\\', '/'), DDNS_DIR: dir, DDNS_ID: requested, DDNS_RUNNING: running ? 'yes' : 'no', DDNS_ENABLED: enabled ? '1' : '0' } });
+`], { encoding: 'utf8', env: { ...process.env, DDNS_INIT: init.replaceAll('\\', '/'), DDNS_DIR: dir, DDNS_ID: requested, DDNS_RUNNING: running ? 'yes' : 'no', DDNS_ENABLED: enabled ? '1' : '0', DDNS_VERIFY: verify ? 'yes' : 'no' } });
 }
 
 test('startup refuses an identity assigned after the page was loaded before writing token or ID', t => {
@@ -79,6 +80,24 @@ test('first setup binds an exact ID only when the saved identity is absent or em
 		assert.equal(result.status, 0, result.stderr);
 		assert.equal(fs.readFileSync(path.join(dir, 'device.id'), 'utf8'), firstID + '\n');
 	}
+});
+
+test('failed ownership verification leaves a first-bind token and identity unchanged', t => {
+	const dir = fixture(t, '');
+	const result = start(dir, firstID, false, true, false);
+	assert.equal(result.status, 1, result.stderr);
+	assert.match(result.stderr, /identity unchanged/);
+	assert.equal(fs.readFileSync(path.join(dir, 'device.id'), 'utf8'), '');
+	assert.equal(fs.readFileSync(path.join(dir, 'device.token'), 'utf8'), 'existing-fixture-token\n');
+	assert.equal(fs.existsSync(path.join(dir, 'runtime')), false);
+});
+
+test('failed verification of a changed account token preserves an existing device', t => {
+	const dir = fixture(t, firstID + '\n');
+	const result = start(dir, firstID, false, true, false);
+	assert.equal(result.status, 1, result.stderr);
+	assert.equal(fs.readFileSync(path.join(dir, 'device.id'), 'utf8'), firstID + '\n');
+	assert.equal(fs.readFileSync(path.join(dir, 'device.token'), 'utf8'), 'existing-fixture-token\n');
 });
 
 test('blank explicit ID keeps the automatic-registration and saved-identity paths', t => {
