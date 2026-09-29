@@ -5,7 +5,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=51ddns-agent
 PKG_VERSION:=0.6.5
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 
 PKG_SOURCE_COMMIT:=b54c696662e73ff61f6ac7c4c3ba2957f66ae62b
 PKG_SOURCE:=51ddns-openwrt-$(PKG_SOURCE_COMMIT).tar.gz
@@ -58,8 +58,10 @@ define Package/51ddns-agent/install
 	$(INSTALL_CONF) ./files/51ddns.config $(1)/etc/config/51ddns
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/51ddns-agent.init $(1)/etc/init.d/51ddns-agent
+	$(INSTALL_BIN) ./files/51ddns-agent-retry.init $(1)/etc/init.d/51ddns-agent-retry
 	$(INSTALL_DIR) $(1)/usr/libexec
 	$(INSTALL_BIN) ./files/51ddns-agent-start $(1)/usr/libexec/51ddns-agent-start
+	$(INSTALL_BIN) ./files/51ddns-agent-retry $(1)/usr/libexec/51ddns-agent-retry
 	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
 	$(INSTALL_DATA) ./files/51ddns-agent.upgrade $(1)/lib/upgrade/keep.d/51ddns-agent
 endef
