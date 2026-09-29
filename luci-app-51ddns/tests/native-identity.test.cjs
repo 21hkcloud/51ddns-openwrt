@@ -20,7 +20,7 @@ function fixture(t, content) {
 	return dir.replaceAll('\\', '/');
 }
 
-function start(dir, requested, running = false, enabled = true, verify = true) {
+function start(dir, requested, running = false, enabled = true, verify = true, moveMode = '') {
 	return spawnSync(shell, ['-c', `
 . "$DDNS_INIT"
 SECRET_DIR="$DDNS_DIR"
@@ -33,6 +33,23 @@ uci_validate_section() {
 logger() { printf '%s\\n' "$*" >&2; }
 verify_device_identity() { [ "$DDNS_VERIFY" = 'yes' ]; }
 chown() { :; }
+mv() {
+ if [ "$2" = "$SECRET_DIR/.identity-pending" ] && [ "$DDNS_MOVE_MODE" = 'stage-crash' ]; then
+  kill -KILL "$$"
+ fi
+ if [ "$2" = "$SECRET_DIR/.identity-cleanup" ] && [ "$DDNS_MOVE_MODE" = 'cleanup-crash' ]; then
+  command mv "$@" || return 1
+  kill -KILL "$$"
+ fi
+ if [ "$3" = "$SECRET_DIR/device.id" ] && [ "$2" = "$SECRET_DIR/.identity-pending/new.id" ]; then
+  [ "$DDNS_MOVE_MODE" = 'fail' ] && return 1
+  [ "$DDNS_MOVE_MODE" = 'crash' ] && kill -KILL "$$"
+ fi
+ if [ "$3" = "$SECRET_DIR/device.id" ] && [ "$DDNS_MOVE_MODE" = 'recovery-crash' ]; then
+  case "$2" in "$SECRET_DIR"/.identity-recover.*) kill -KILL "$$";; esac
+ fi
+ command mv "$@"
+}
 procd_open_instance() { printf 'started\\n'; }
 procd_running() { [ "$DDNS_RUNNING" = 'yes' ]; }
 procd_set_param() { :; }
@@ -41,7 +58,7 @@ procd_add_jail_mount() { :; }
 procd_add_jail_mount_rw() { :; }
 procd_close_instance() { :; }
 start_service
-`], { encoding: 'utf8', env: { ...process.env, DDNS_INIT: init.replaceAll('\\', '/'), DDNS_DIR: dir, DDNS_ID: requested, DDNS_RUNNING: running ? 'yes' : 'no', DDNS_ENABLED: enabled ? '1' : '0', DDNS_VERIFY: verify ? 'yes' : 'no' } });
+`], { encoding: 'utf8', env: { ...process.env, DDNS_INIT: init.replaceAll('\\', '/'), DDNS_DIR: dir, DDNS_ID: requested, DDNS_RUNNING: running ? 'yes' : 'no', DDNS_ENABLED: enabled ? '1' : '0', DDNS_VERIFY: verify ? 'yes' : 'no', DDNS_MOVE_MODE: moveMode } });
 }
 
 test('startup refuses an identity assigned after the page was loaded before writing token or ID', t => {
@@ -90,6 +107,69 @@ test('failed ownership verification leaves a first-bind token and identity uncha
 	assert.equal(fs.readFileSync(path.join(dir, 'device.id'), 'utf8'), '');
 	assert.equal(fs.readFileSync(path.join(dir, 'device.token'), 'utf8'), 'existing-fixture-token\n');
 	assert.equal(fs.existsSync(path.join(dir, 'runtime')), false);
+});
+
+test('failure between token and ID replacement restores both old files and never starts', t => {
+	const dir = fixture(t, '');
+	const result = start(dir, firstID, false, true, true, 'fail');
+	assert.equal(result.status, 1, result.stderr);
+	assert.doesNotMatch(result.stdout, /started/);
+	assert.equal(fs.readFileSync(path.join(dir, 'device.id'), 'utf8'), '');
+	assert.equal(fs.readFileSync(path.join(dir, 'device.token'), 'utf8'), 'existing-fixture-token\n');
+	assert.equal(fs.existsSync(path.join(dir, '.identity-pending')), false);
+});
+
+test('interrupted first-bind recovers the old pair before another ownership check', t => {
+	const dir = fixture(t, '');
+	const crashed = start(dir, firstID, false, true, true, 'crash');
+	assert.notEqual(crashed.status, 0);
+	assert.equal(fs.existsSync(path.join(dir, '.identity-pending')), true);
+	const resumed = start(dir, firstID, false, true, false);
+	assert.equal(resumed.status, 1, resumed.stderr);
+	assert.match(resumed.stderr, /interrupted identity update recovered/);
+	assert.doesNotMatch(resumed.stdout, /started/);
+	assert.equal(fs.readFileSync(path.join(dir, 'device.id'), 'utf8'), '');
+	assert.equal(fs.readFileSync(path.join(dir, 'device.token'), 'utf8'), 'existing-fixture-token\n');
+	assert.equal(fs.existsSync(path.join(dir, '.identity-pending')), false);
+});
+
+test('interrupted recovery can be resumed without starting with a mixed identity', t => {
+	const dir = fixture(t, '');
+	assert.notEqual(start(dir, firstID, false, true, true, 'crash').status, 0);
+	const interrupted = start(dir, firstID, false, true, false, 'recovery-crash');
+	assert.notEqual(interrupted.status, 0);
+	assert.equal(fs.existsSync(path.join(dir, '.identity-pending')), true);
+	const resumed = start(dir, firstID, false, true, false);
+	assert.equal(resumed.status, 1, resumed.stderr);
+	assert.doesNotMatch(resumed.stdout, /started/);
+	assert.equal(fs.readFileSync(path.join(dir, 'device.id'), 'utf8'), '');
+	assert.equal(fs.readFileSync(path.join(dir, 'device.token'), 'utf8'), 'existing-fixture-token\n');
+	assert.equal(fs.existsSync(path.join(dir, '.identity-pending')), false);
+});
+
+test('interrupted staging discards temporary copies before another ownership check', t => {
+	const dir = fixture(t, '');
+	const crashed = start(dir, firstID, false, true, true, 'stage-crash');
+	assert.notEqual(crashed.status, 0);
+	assert.ok(fs.readdirSync(dir).some(name => name.startsWith('.identity-stage.')));
+	const resumed = start(dir, firstID, false, true, false);
+	assert.equal(resumed.status, 1, resumed.stderr);
+	assert.equal(fs.readFileSync(path.join(dir, 'device.id'), 'utf8'), '');
+	assert.equal(fs.readFileSync(path.join(dir, 'device.token'), 'utf8'), 'existing-fixture-token\n');
+	assert.equal(fs.readdirSync(dir).some(name => name.startsWith('.identity-stage.')), false);
+});
+
+test('interrupted journal cleanup keeps the committed identity and clears leftovers on restart', t => {
+	const dir = fixture(t, '');
+	const crashed = start(dir, firstID, false, true, true, 'cleanup-crash');
+	assert.notEqual(crashed.status, 0);
+	assert.equal(fs.existsSync(path.join(dir, '.identity-cleanup')), true);
+	const resumed = start(dir, firstID);
+	assert.equal(resumed.status, 0, resumed.stderr);
+	assert.match(resumed.stdout, /started/);
+	assert.equal(fs.readFileSync(path.join(dir, 'device.id'), 'utf8'), firstID + '\n');
+	assert.equal(fs.readFileSync(path.join(dir, 'device.token'), 'utf8'), 'new-fixture-token\n');
+	assert.equal(fs.existsSync(path.join(dir, '.identity-cleanup')), false);
 });
 
 test('failed verification of a changed account token preserves an existing device', t => {
