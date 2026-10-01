@@ -10,7 +10,7 @@ PKG_RELEASE:=5
 PKG_SOURCE_COMMIT:=c2aaf071964ceffb419b44e96f840b9a91ce974d
 PKG_SOURCE:=51ddns-openwrt-$(PKG_SOURCE_COMMIT).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/21hkcloud/51ddns-openwrt/tar.gz/$(PKG_SOURCE_COMMIT)?
-PKG_HASH:=ee92ce8b624791fe5bedcd2a9e48bb43274c699c05e05fe56c82ff96482d4d79
+PKG_HASH:=e3c7c404372fa15094a737b4aec569bb94bf54a79fb318a04dc9f3ca4d3203a7
 PKG_BUILD_DIR:=$(BUILD_DIR)/51ddns-openwrt-$(PKG_SOURCE_COMMIT)
 
 PKG_MAINTAINER:=Jinshuan Wang <21hkcloud@gmail.com>
