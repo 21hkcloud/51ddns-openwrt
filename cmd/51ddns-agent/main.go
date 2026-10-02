@@ -56,8 +56,13 @@ type localStatus struct {
 	DeviceID  string      `json:"device_id"`
 	Online    bool        `json:"online"`
 	Plan      *planStatus `json:"plan,omitempty"`
+	ErrorCode string      `json:"error_code,omitempty"`
 	UpdatedAt time.Time   `json:"updated_at"`
 }
+
+const deviceQuotaErrorCode = "device_quota_exceeded"
+
+var errDeviceQuotaExceeded = errors.New("control plane activation rejected: device quota exceeded")
 
 type managedProcess struct {
 	relay string
@@ -187,6 +192,7 @@ func load() (*agent, error) {
 
 func (a *agent) run(ctx context.Context) error {
 	var last []relayConfiguration
+	a.recordActivationStatus("")
 	for ctx.Err() == nil {
 		if a.deviceID == "" {
 			if err := a.activate(ctx); err != nil {
@@ -253,7 +259,12 @@ func (a *agent) run(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (a *agent) activate(ctx context.Context) error {
+func (a *agent) activate(ctx context.Context) (activationErr error) {
+	defer func() {
+		if !errors.Is(activationErr, errDeviceQuotaExceeded) {
+			a.recordActivationStatus("")
+		}
+	}()
 	payload, err := json.Marshal(map[string]string{
 		"installation_id": a.installationID,
 		"platform":        platformName(),
@@ -274,8 +285,21 @@ func (a *agent) activate(ctx context.Context) error {
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
-		return fmt.Errorf("control plane activation returned HTTP %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
+		var failure struct {
+			Error struct {
+				Code string `json:"code"`
+			} `json:"error"`
+		}
+		if response.StatusCode == http.StatusConflict {
+			_ = json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&failure)
+		} else {
+			_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+		}
+		if failure.Error.Code == deviceQuotaErrorCode {
+			a.recordActivationStatus(deviceQuotaErrorCode)
+			return errDeviceQuotaExceeded
+		}
+		return fmt.Errorf("control plane activation returned HTTP %d", response.StatusCode)
 	}
 	var result struct {
 		DeviceID string `json:"device_id"`
@@ -453,7 +477,7 @@ func (a *agent) fetch(ctx context.Context) ([]relayConfiguration, error) {
 		}
 		seen[item.RelayNode] = true
 	}
-	if err := a.writeLocalStatus(result.Plan); err != nil {
+	if err := a.writeLocalStatus(localStatus{DeviceID: a.deviceID, Online: true, Plan: result.Plan}); err != nil {
 		slog.Warn("write local status failed", "error", err)
 	}
 	sort.Slice(result.RelayConfigs, func(i, j int) bool { return result.RelayConfigs[i].RelayNode < result.RelayConfigs[j].RelayNode })
@@ -464,16 +488,18 @@ func (a *agent) fetch(ctx context.Context) ([]relayConfiguration, error) {
 	return result.RelayConfigs, nil
 }
 
-func (a *agent) writeLocalStatus(plan *planStatus) error {
+func (a *agent) recordActivationStatus(errorCode string) {
+	if err := a.writeLocalStatus(localStatus{DeviceID: a.deviceID, ErrorCode: errorCode}); err != nil {
+		slog.Warn("write local status failed", "error", err)
+	}
+}
+
+func (a *agent) writeLocalStatus(status localStatus) error {
 	if strings.TrimSpace(a.statusPath) == "" {
 		return nil
 	}
-	payload, err := json.Marshal(localStatus{
-		DeviceID:  a.deviceID,
-		Online:    true,
-		Plan:      plan,
-		UpdatedAt: time.Now().UTC(),
-	})
+	status.UpdatedAt = time.Now().UTC()
+	payload, err := json.Marshal(status)
 	if err != nil {
 		return err
 	}

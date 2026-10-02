@@ -1,0 +1,19 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: luci-app-51ddns\n"
+"PO-Revision-Date: 2026-09-26 00:00+0000\n"
+"Last-Translator: 51DDNS\n"
+"Language-Team: Chinese (Simplified)\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: zh_Hans\n"
+"MIME-Version: 1.0\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Device quota"
+msgstr "设备额度"
+
+msgid "Device limit reached. Upgrade or purchase a plan, or permanently delete an unused device and retry."
+msgstr "设备额度已用完，请升级或购买设备套餐，或永久删除不再使用的设备后重试。"
+
+msgid "Go to device plans"
+msgstr "前往设备套餐"
