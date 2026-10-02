@@ -93,7 +93,7 @@ msgstr ""
 msgid "Not running"
 msgstr ""
 
-msgid "Paste the exact UUID of the device created in the console. Leaving this blank does not clear a saved router ID. Do not change the ID of a router already connected to an account."
+msgid "Paste the exact UUID of the device created in the console. If verification failed before this router saved an identity, stop the agent to correct or clear this field. A saved router ID is never cleared here."
 msgstr ""
 
 #: applications/luci-app-51ddns/htdocs/luci-static/resources/view/51ddns/overview.js:124

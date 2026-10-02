@@ -96,6 +96,13 @@ func main() {
 		fmt.Printf("51ddns-agent %s\n", agentVersion)
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "verify-identity" {
+		if err := verifyIdentityCommand(os.Args[2:], os.Stdin); err != nil {
+			slog.Error("device identity verification failed", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
 	service, err := load()
 	if err != nil {
 		slog.Error("agent configuration rejected", "error", err)
