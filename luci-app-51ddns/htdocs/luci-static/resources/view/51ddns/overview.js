@@ -83,6 +83,8 @@ function quotaExceeded(local, running) {
 	return Number.isFinite(age) && age >= -30000 && age <= 120000;
 }
 
+const deviceIDPattern = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+
 return view.extend({
 	load() {
 		return Promise.all([
@@ -100,10 +102,12 @@ return view.extend({
 		const plan = local.plan || null;
 		const quotaBlocked = quotaExceeded(local, state.running);
 		const remaining = remainingState(plan?.expires_at);
+		const configuredDeviceID = uci.get('51ddns', 'main', 'device_id') || '';
+		const savedDeviceID = local.identity_state === 'saved' && deviceIDPattern.test(local.saved_device_id || '') ? local.saved_device_id : '';
 		const map = new form.Map(
 			'51ddns',
 			_('51DDNS Remote Access'),
-			_('Enter the account token once to register this router automatically. Device identity and relay settings are managed by the 51DDNS control plane.'),
+			_('Enter your account token. For a device already created in the console, enter its exact device UUID below. Leave the ID blank for automatic registration only when this router has no saved device ID and your account has a free device slot.'),
 		);
 		const section = map.section(form.NamedSection, 'main', 'agent', _('Quick setup'));
 		section.addremove = false;
@@ -120,7 +124,7 @@ return view.extend({
 			const quota = section.option(form.DummyValue, '_quota', _('Device quota'));
 			quota.rawhtml = true;
 			quota.cfgvalue = () =>
-				`<strong style="color:#b91c1c">${_('Device limit reached. Upgrade or purchase a plan, or permanently delete an unused device and retry.')}</strong> ` +
+				`<strong style="color:#b91c1c">${_('Device limit reached. If this router already has a device record in the console, use its exact device ID to continue binding. Upgrade or purchase a plan only when adding another device.')}</strong> ` +
 				`<a href="https://console.51ddns.com/console#/plans" target="_blank" rel="noopener noreferrer" style="color:#b91c1c">${_('Go to device plans')}</a>`;
 		}
 
@@ -153,7 +157,30 @@ return view.extend({
 		token.password = true;
 		token.rmempty = false;
 		token.placeholder = '51d_...';
-		token.description = _('Copy the token from the 51DDNS console. All devices in the same account share this token.');
+		token.description = _('Copy the token from the 51DDNS console. Updating it keeps the saved device ID. A token from another account will be rejected until the device identity is migrated.');
+
+		const deviceID = section.option(form.Value, 'device_id', _('Existing device ID (optional)'));
+		deviceID.rmempty = true;
+		deviceID.description = _('Paste the exact UUID of the device created in the console. Leaving this blank does not clear a saved router ID. Do not change the ID of a router already connected to an account.');
+		deviceID.validate = (_sectionId, value) => {
+			// Stopping the service must remain possible with a stale configured ID.
+			if (enabled.formvalue(_sectionId) === enabled.disabled)
+				return true;
+			if (value && !deviceIDPattern.test(value))
+				return _('Enter a valid device UUID from the console.');
+			const matchesSaved = value && savedDeviceID && value.toLowerCase() === savedDeviceID.toLowerCase();
+			if (value !== configuredDeviceID && configuredDeviceID && !matchesSaved)
+				return _('This router already has a configured device ID. Changing it requires a separate migration.');
+			if (value && savedDeviceID && value.toLowerCase() !== savedDeviceID.toLowerCase())
+				return _('This router already has a saved device ID. Changing it requires a separate migration.');
+			if (value && !savedDeviceID && local.identity_state !== 'empty')
+				return _('The saved device identity could not be verified. Refresh the page before setting a device ID.');
+			if (value && !savedDeviceID && state.running)
+				return _('Disable the agent and save first. Then enter the existing device ID and enable it again.');
+			return true;
+		};
+		// A blank optional field must never remove an existing explicit ID.
+		deviceID.remove = () => {};
 
 		return map.render();
 	},

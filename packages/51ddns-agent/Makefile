@@ -5,7 +5,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=51ddns-agent
 PKG_VERSION:=0.6.5
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_SOURCE:=51ddns-openwrt-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/21hkcloud/51ddns-openwrt/tar.gz/v$(PKG_VERSION)?
@@ -48,6 +48,8 @@ define Package/51ddns-agent/conffiles
 /etc/config/51ddns
 endef
 
+# The init script creates and owns /etc/51ddns; packaging an empty directory
+# resets its owner and mode when an existing installation is upgraded.
 define Package/51ddns-agent/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) $(GO_PKG_BUILD_BIN_DIR)/51ddns-agent $(1)/usr/bin/51ddns-agent
@@ -57,7 +59,6 @@ define Package/51ddns-agent/install
 	$(INSTALL_BIN) ./files/51ddns-agent.init $(1)/etc/init.d/51ddns-agent
 	$(INSTALL_DIR) $(1)/usr/libexec
 	$(INSTALL_BIN) ./files/51ddns-agent-start $(1)/usr/libexec/51ddns-agent-start
-	$(INSTALL_DIR) $(1)/etc/51ddns
 	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
 	$(INSTALL_DATA) ./files/51ddns-agent.upgrade $(1)/lib/upgrade/keep.d/51ddns-agent
 endef
