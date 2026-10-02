@@ -237,10 +237,26 @@ func (a *agent) run(ctx context.Context) error {
 				stopGroup(processes)
 				return ctx.Err()
 			case event := <-exits:
-				ticker.Stop()
 				slog.Warn("tunnel client exited", "relay", event.relay, "error", event.err)
-				stopGroup(processes)
-				restart = true
+				if !wait(ctx, 3*time.Second) {
+					ticker.Stop()
+					stopGroup(processes)
+					return ctx.Err()
+				}
+				for index, configuration := range current {
+					if configuration.RelayNode != event.relay {
+						continue
+					}
+					replacement, err := a.startProcess(configuration, len(current), exits)
+					if err != nil {
+						ticker.Stop()
+						stopGroup(processes)
+						return err
+					}
+					processes[index] = replacement
+					slog.Info("tunnel client restarted", "relay", configuration.RelayNode)
+					break
+				}
 			case <-ticker.C:
 				if err := a.reportIP(ctx); err != nil {
 					slog.Warn("public address report failed", "error", err)
@@ -361,31 +377,38 @@ func loadOrCreateInstallationID(path string) (string, error) {
 	return value, nil
 }
 
-func (a *agent) startGroup(configurations []relayConfiguration) ([]*managedProcess, <-chan processExit, error) {
+func (a *agent) startGroup(configurations []relayConfiguration) ([]*managedProcess, chan processExit, error) {
 	exits := make(chan processExit, len(configurations))
 	processes := make([]*managedProcess, 0, len(configurations))
 	for _, configuration := range configurations {
-		path := a.relayConfigPath(configuration.RelayNode, len(configurations))
-		if err := writePrivate(path, []byte(configuration.FRPCTOML)); err != nil {
+		process, err := a.startProcess(configuration, len(configurations), exits)
+		if err != nil {
 			stopGroup(processes)
-			return nil, nil, fmt.Errorf("write %s frpc configuration: %w", configuration.RelayNode, err)
+			return nil, nil, err
 		}
-		cmd := exec.Command(a.frpcPath, "-c", path)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Start(); err != nil {
-			stopGroup(processes)
-			return nil, nil, fmt.Errorf("start %s frpc: %w", configuration.RelayNode, err)
-		}
-		process := &managedProcess{relay: configuration.RelayNode, cmd: cmd, done: make(chan error, 1)}
 		processes = append(processes, process)
-		go func(item *managedProcess) {
-			err := item.cmd.Wait()
-			item.done <- err
-			exits <- processExit{relay: item.relay, err: err}
-		}(process)
 	}
 	return processes, exits, nil
+}
+
+func (a *agent) startProcess(configuration relayConfiguration, total int, exits chan<- processExit) (*managedProcess, error) {
+	path := a.relayConfigPath(configuration.RelayNode, total)
+	if err := writePrivate(path, []byte(configuration.FRPCTOML)); err != nil {
+		return nil, fmt.Errorf("write %s frpc configuration: %w", configuration.RelayNode, err)
+	}
+	cmd := exec.Command(a.frpcPath, "-c", path)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("start %s frpc: %w", configuration.RelayNode, err)
+	}
+	process := &managedProcess{relay: configuration.RelayNode, cmd: cmd, done: make(chan error, 1)}
+	go func() {
+		err := cmd.Wait()
+		process.done <- err
+		exits <- processExit{relay: configuration.RelayNode, err: err}
+	}()
+	return process, nil
 }
 
 func (a *agent) relayConfigPath(relay string, total int) string {
