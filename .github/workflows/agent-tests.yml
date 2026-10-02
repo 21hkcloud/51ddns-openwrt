@@ -34,3 +34,5 @@ jobs:
       - run: node --test luci-app-51ddns/tests/*.test.cjs
       - run: sh -n luci-app-51ddns/root/usr/libexec/rpcd/luci.51ddns
       - run: sh -n packages/51ddns-agent/files/51ddns-agent.init
+      - run: sh -n packages/51ddns-agent/files/51ddns-agent-retry.init
+      - run: sh -n packages/51ddns-agent/files/51ddns-agent-retry

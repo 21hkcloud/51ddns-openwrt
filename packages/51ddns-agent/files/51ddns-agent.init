@@ -274,3 +274,16 @@ start_service() {
 service_triggers() {
 	procd_add_reload_trigger 51ddns
 }
+
+service_started() {
+	# A retry started by the helper must not replace that helper's own procd instance.
+	[ "${_51DDNS_IDENTITY_RETRY:-0}" = 1 ] && return 0
+	[ -x /etc/init.d/51ddns-agent-retry ] || return 0
+	/etc/init.d/51ddns-agent-retry restart >/dev/null 2>&1 ||
+		logger -t 51ddns-agent "identity retry service could not be started"
+}
+
+stop_service() {
+	[ -x /etc/init.d/51ddns-agent-retry ] || return 0
+	/etc/init.d/51ddns-agent-retry stop >/dev/null 2>&1 || :
+}
