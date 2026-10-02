@@ -12,16 +12,20 @@ configuration assigned by the 51DDNS control plane.
 - the `51ddns-agent`, `frpc` and `ca-bundle` packages; and
 - optionally, `luci-app-51ddns` for browser-based configuration.
 
-The LuCI package is maintained and reviewed separately in the official
-`openwrt/luci` feed. It is not included in the agent source archive.
+Agent and LuCI are distributed as separate runtime packages. Their official
+OpenWrt feed submissions are reviewed separately. The current source tree
+also contains optional LuCI build sources for iStore; check each configured
+feed for the packages and versions actually available.
 
 ### OpenWrt 24.10 and iStore
 
 OpenWrt 24.10's official frpc 0.51.3 cannot read the TOML configuration used
-by the agent. Agent 0.6.4-r2 requires frpc 0.52.0 or later. Before installing
+by the agent. Agent 0.6.5-r5 requires frpc 0.52.0 or later. Before installing
 through iStore on 24.10, add the signed 51DDNS feed that supplies a compatible
-frpc. The current 24.10.8 feed provides Agent 0.6.4-r2 and frpc 0.70.0-r3 for
-x86_64, aarch64_cortex-a53 and mipsel_24kc.
+frpc. The 24.10.8 self-hosted feed provides Agent 0.6.5-r5, LuCI 0.1.5-r3
+and frpc 0.70.0-r3 for x86_64, aarch64_cortex-a53 and mipsel_24kc.
+The self-hosted feed and the official iStore catalog are separate; publication
+in one does not mean that the other has accepted the same version.
 
 The official installer below verifies the pinned public key, adds the signed
 feed, refreshes opkg and installs Agent and LuCI. Afterwards iStore shows the
@@ -47,6 +51,13 @@ opkg list-installed | grep -E '^(51ddns-agent|frpc|luci-app-51ddns) '
 Do not force dependencies or install an APK on an IPK-based system. If the
 signed feed is unavailable, wait for it rather than installing the old frpc.
 
+### OpenWrt 25.12 and iStore
+
+Use APK packages built for the installed OpenWrt release and architecture.
+The configured trusted repositories must supply frpc 0.52.0 or later. Check
+the catalog and installed versions before assuming an iStore update includes
+the Agent and LuCI versions published in the self-hosted feed.
+
 ## Install
 
 After the packages are available in the configured feed, install them with the
@@ -66,16 +77,30 @@ The LuCI package is optional. The agent can be configured entirely with UCI.
 
 ## Configure with LuCI
 
-Open **Services -> 51DDNS Remote Access**, paste the account token, enable the
-service, and select **Save & Apply**. The page shows the local agent process
+Open **Services -> 51DDNS Remote Access**. On a router that has not bound
+successfully, leave **Enable** off and select **Save & Apply** first.
+Enter the account token. If this router already has an unbound record in
+the console, copy its full device ID into **Existing device ID (optional)**
+to continue that record. Leave it blank only when intentionally adding a
+new device and a free device authorization is available. Then enable the
+service and select **Save & Apply** again.
+
+On an already bound router, preserve the saved identity and device ID.
+Changing identities requires the separate rebind procedure; do not delete
+credentials or create another record to work around an error.
+
+The page shows the local agent process
 state, agent version, current plan, expiry information and a link to the 51DDNS
 console. A running process alone does not prove that the router has connected to
 the control plane; confirm that the device appears in the console.
 
 ## Configure with UCI
 
-Do not put the token in shell history on shared systems. The following example
-uses a placeholder that must be replaced locally:
+Do not put the token in shell history on shared systems. For an unbound
+router continuing an existing console record, stop the agent first, save
+`enabled=0`, and set `device_id` to that record's full ID before enabling.
+Preserve the identity of an already bound router. The following example uses
+a token placeholder that must be replaced locally:
 
 ```sh
 uci set 51ddns.main.enabled='1'
@@ -125,7 +150,7 @@ If the service does not start:
 Useful commands:
 
 ```sh
-uci show 51ddns
+uci -q get 51ddns.main.enabled
 date
 nslookup api.51ddns.com
 /etc/init.d/51ddns-agent restart
