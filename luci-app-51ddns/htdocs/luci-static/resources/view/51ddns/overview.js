@@ -73,14 +73,33 @@ function remainingState(value) {
 	};
 }
 
-function quotaExceeded(local, running) {
-	if (!running || local?.error_code !== 'device_quota_exceeded')
+function recentStatus(local, running) {
+	if (!running)
 		return false;
 
 	const updatedAt = Date.parse(local.updated_at || '');
 	const routerTime = Date.parse(local.router_time || '');
 	const age = (Number.isFinite(routerTime) ? routerTime : Date.now()) - updatedAt;
 	return Number.isFinite(age) && age >= -30000 && age <= 120000;
+}
+
+function quotaExceeded(local, running) {
+	return local?.error_code === 'device_quota_exceeded' && recentStatus(local, running);
+}
+
+function relayFailure(local, running) {
+	if (!recentStatus(local, running))
+		return null;
+	switch (local?.error_code) {
+		case 'frpc_config_write_failed':
+			return _('Cannot write the tunnel client configuration. Retrying automatically; check storage and permissions.');
+		case 'frpc_start_failed':
+			return _('Tunnel client could not start. Retrying automatically; check the frpc installation.');
+		case 'frpc_process_exited':
+			return _('Tunnel client exited. Retrying automatically; the agent continues attempting device reporting.');
+		default:
+			return null;
+	}
 }
 
 const deviceIDPattern = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
@@ -101,6 +120,7 @@ return view.extend({
 		const info = data[3] || {};
 		const plan = local.plan || null;
 		const quotaBlocked = quotaExceeded(local, state.running);
+		const relayWarning = relayFailure(local, state.running);
 		const remaining = remainingState(plan?.expires_at);
 		const configuredDeviceID = uci.get('51ddns', 'main', 'device_id') || '';
 		const savedDeviceID = local.identity_state === 'saved' && deviceIDPattern.test(local.saved_device_id || '') ? local.saved_device_id : '';
@@ -119,6 +139,11 @@ return view.extend({
 
 		const version = section.option(form.DummyValue, '_version', _('Agent version'));
 		version.cfgvalue = () => info.version || _('Unavailable');
+
+		if (relayWarning) {
+			const relay = section.option(form.DummyValue, '_relay', _('Tunnel client'));
+			relay.cfgvalue = () => relayWarning;
+		}
 
 		if (quotaBlocked) {
 			const quota = section.option(form.DummyValue, '_quota', _('Device quota'));

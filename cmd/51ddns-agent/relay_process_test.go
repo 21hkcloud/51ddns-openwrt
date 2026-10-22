@@ -23,6 +23,7 @@ func TestRelayExitPreservesHealthyProcess(t *testing.T) {
 	t.Setenv("QA_RELAY_STATE_DIR", dir)
 	helper := filepath.Join(dir, "fake-frpc")
 	script := `#!/bin/sh
+[ "$1" = --version ] && { echo 0.70.0; exit 0; }
 trap 'exit 0' INT TERM
 case "$2" in *node-hk1*) node=node-hk1 ;; *) node=node-hk2 ;; esac
 printf '%s %s\n' "$node" "$$" >> "$QA_RELAY_STATE_DIR/starts"

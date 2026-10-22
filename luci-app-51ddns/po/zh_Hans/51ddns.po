@@ -44,3 +44,15 @@ msgstr "无法核实已保存的设备身份。请刷新页面后再设置设备
 
 msgid "Disable the agent and save first. Then enter the existing device ID and enable it again."
 msgstr "请先取消启用并保存，再填写已有设备 ID 并重新启用。"
+
+msgid "Tunnel client"
+msgstr "隧道客户端"
+
+msgid "Cannot write the tunnel client configuration. Retrying automatically; check storage and permissions."
+msgstr "无法写入隧道客户端配置，正在自动重试；请检查存储空间和权限。"
+
+msgid "Tunnel client could not start. Retrying automatically; check the frpc installation."
+msgstr "隧道客户端无法启动，正在自动重试；请检查 frpc 是否正确安装。"
+
+msgid "Tunnel client exited. Retrying automatically; the agent continues attempting device reporting."
+msgstr "隧道客户端已退出，正在自动重试；Agent 仍会尝试上报设备状态。"

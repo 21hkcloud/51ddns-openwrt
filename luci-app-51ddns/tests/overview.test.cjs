@@ -65,6 +65,38 @@ test('quota guidance is suppressed for stale, unrelated, or stopped status', () 
 	}
 });
 
+test('relay failures show fixed retry guidance without claiming tunnel registration', () => {
+	for (const [code, message] of [
+		['frpc_config_write_failed', /check storage and permissions/],
+		['frpc_start_failed', /check the frpc installation/],
+		['frpc_process_exited', /attempting device reporting/],
+	]) {
+		const options = renderOptions({ error_code: code, updated_at: new Date().toISOString(), error: '<script>private-token</script>' });
+		const relay = options.find(option => option.id === '_relay');
+		assert.ok(relay);
+		assert.notEqual(relay.rawhtml, true);
+		assert.match(relay.cfgvalue(), message);
+		assert.match(relay.cfgvalue(), /Retrying automatically/);
+		assert.doesNotMatch(relay.cfgvalue(), /private-token|script|registered|connected/i);
+		assert.equal(options.some(option => option.id === '_quota'), false);
+	}
+});
+
+test('relay warnings obey router time and suppress stale, unknown and stopped states', () => {
+	const updated_at = '2026-01-01T00:00:00Z';
+	const current = { error_code: 'frpc_start_failed', updated_at, router_time: '2026-01-01T00:00:30Z' };
+	assert.equal(renderOptions(current).some(option => option.id === '_relay'), true);
+	for (const [local, running] of [
+		[{ ...current, router_time: '2026-01-01T00:02:01Z' }, true],
+		[{ ...current, error_code: 'constructor' }, true],
+		[{ ...current, error_code: 'device_quota_exceeded' }, true],
+		[{ ...current, updated_at: '' }, true],
+		[current, false],
+	]) {
+		assert.equal(renderOptions(local, running).some(option => option.id === '_relay'), false);
+	}
+});
+
 test('new router can use a pre-created UUID or leave it blank for automatic registration', () => {
 	const options = renderOptions({}, false);
 	const deviceID = options.find(option => option.id === 'device_id');

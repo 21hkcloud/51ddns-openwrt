@@ -136,3 +136,15 @@ msgstr ""
 #: applications/luci-app-51ddns/htdocs/luci-static/resources/view/51ddns/overview.js:106
 msgid "Unavailable"
 msgstr ""
+
+msgid "Tunnel client"
+msgstr ""
+
+msgid "Cannot write the tunnel client configuration. Retrying automatically; check storage and permissions."
+msgstr ""
+
+msgid "Tunnel client could not start. Retrying automatically; check the frpc installation."
+msgstr ""
+
+msgid "Tunnel client exited. Retrying automatically; the agent continues attempting device reporting."
+msgstr ""

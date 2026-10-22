@@ -56,7 +56,11 @@ print_status() {
 		json_add_string expires_at "$status_expires_at"
 		json_close_object
 	fi
-	if [ "$status_error_code" = 'device_quota_exceeded' ] && [ -n "$status_updated_at" ]; then
+	case "$status_error_code" in
+		device_quota_exceeded|frpc_config_write_failed|frpc_start_failed|frpc_process_exited) ;;
+		*) status_error_code='' ;;
+	esac
+	if [ -n "$status_error_code" ] && [ -n "$status_updated_at" ]; then
 		json_add_string error_code "$status_error_code"
 		json_add_string updated_at "$status_updated_at"
 		status_router_time="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
