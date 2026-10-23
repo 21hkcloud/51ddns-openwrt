@@ -5,7 +5,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=51ddns-agent
 PKG_VERSION:=0.6.6
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_SOURCE:=51ddns-openwrt-0.6.6.tar.gz
 PKG_SOURCE_URL:=https://github.com/21hkcloud/51ddns-openwrt/releases/download/v0.6.6-r1

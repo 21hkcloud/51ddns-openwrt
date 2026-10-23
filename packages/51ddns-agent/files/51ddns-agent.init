@@ -50,7 +50,7 @@ check_device_identity() {
 
 verify_device_identity() {
 	printf '%s' "$account_token" | /usr/bin/51ddns-agent verify-identity \
-		--device-id "$1" --control-api-url "$control_url" >/dev/null
+		--device-id "$1" --control-api-url "$control_url" > /dev/null
 }
 
 discard_identity_stage() {
@@ -219,11 +219,11 @@ start_service() {
 	check_device_identity "$device_id" || return 1
 
 	go_memory_limit='128MiB'
-	case "$(uname -m 2>/dev/null)" in
-		mips*)
-			[ "$max_active_relays" -gt 0 ] || max_active_relays=1
-			go_memory_limit='48MiB'
-			;;
+	case "$(uname -m 2> /dev/null)" in
+	mips*)
+		[ "$max_active_relays" -gt 0 ] || max_active_relays=1
+		go_memory_limit='48MiB'
+		;;
 	esac
 
 	mkdir -p "$SECRET_DIR" "$RUNTIME_DIR" || return 1
@@ -279,11 +279,11 @@ service_started() {
 	# A retry started by the helper must not replace that helper's own procd instance.
 	[ "${_51DDNS_IDENTITY_RETRY:-0}" = 1 ] && return 0
 	[ -x /etc/init.d/51ddns-agent-retry ] || return 0
-	/etc/init.d/51ddns-agent-retry restart >/dev/null 2>&1 ||
+	/etc/init.d/51ddns-agent-retry restart > /dev/null 2>&1 ||
 		logger -t 51ddns-agent "identity retry service could not be started"
 }
 
 stop_service() {
 	[ -x /etc/init.d/51ddns-agent-retry ] || return 0
-	/etc/init.d/51ddns-agent-retry stop >/dev/null 2>&1 || :
+	/etc/init.d/51ddns-agent-retry stop > /dev/null 2>&1 || :
 }

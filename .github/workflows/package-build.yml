@@ -316,7 +316,7 @@ jobs:
           artifacts_mounted=1
           cd "$sdk"
           bash "$RUNNER_TEMP/immortal-entrypoint.sh"
-          for pattern in '51ddns-agent-0.6.6-r1.apk' 'luci-app-51ddns-0.1.6-r1.apk' 'luci-i18n-51ddns-zh-cn-*.apk'; do
+          for pattern in '51ddns-agent-0.6.6-r2.apk' 'luci-app-51ddns-0.1.6-r1.apk' 'luci-i18n-51ddns-zh-cn-*.apk'; do
             package_file=$(find "$GITHUB_WORKSPACE/bin" -type f -name "$pattern" -print -quit)
             if [ -z "$package_file" ]; then
               echo "Required output package missing: $pattern" >&2

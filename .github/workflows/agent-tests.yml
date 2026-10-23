@@ -26,6 +26,10 @@ jobs:
         timeout-minutes: 6
         run: go test -race ./... -count=3 -timeout=300s
       - run: go vet ./...
+      - name: Check init formatting (shfmt 3.8.0)
+        if: matrix.go == '1.23.x'
+        timeout-minutes: 2
+        run: go run mvdan.cc/sh/v3/cmd/shfmt@v3.8.0 -d -sr -s packages/51ddns-agent/files/*.init
 
   luci:
     runs-on: ubuntu-latest
