@@ -238,7 +238,7 @@ jobs:
 
   immortalwrt:
     name: ImmortalWrt / ${{ matrix.arch }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -247,17 +247,83 @@ jobs:
           - aarch64_cortex-a53
           - mips_24kc
           - mipsel_24kc
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Build agent package from source
+        if: matrix.arch != 'x86_64'
         uses: immortalwrt/gh-action-sdk@master
         env:
           ARCH: ${{ matrix.arch }}
           BUILD_LOG: 1
           PACKAGES: 51ddns-agent luci-app-51ddns
           V: s
+      - name: Build x86_64 SDK on a compatible glibc host
+        if: matrix.arch == 'x86_64'
+        timeout-minutes: 40
+        shell: bash
+        env:
+          BUILD_LOG: 1
+          PACKAGES: 51ddns-agent luci-app-51ddns
+          V: s
+        run: |
+          set -euo pipefail
+          sdk=/home/build/immortalwrt
+          for path in "$sdk" /feed /artifacts; do
+            if [ -e "$path" ] || [ -L "$path" ]; then
+              echo "Refusing to reuse an existing build path: $path" >&2
+              exit 1
+            fi
+          done
+          cid=
+          feed_mounted=0
+          artifacts_mounted=0
+          cleanup() {
+            local result=$?
+            local cleanup_failed=0
+            trap - EXIT
+            set +e
+            if [ "$artifacts_mounted" = 1 ]; then sudo umount /artifacts || cleanup_failed=1; fi
+            if [ "$feed_mounted" = 1 ]; then sudo umount /feed || cleanup_failed=1; fi
+            if [ -n "$cid" ]; then docker rm "$cid" >/dev/null || cleanup_failed=1; fi
+            if [ "$result" = 0 ]; then result=$cleanup_failed; fi
+            exit "$result"
+          }
+          trap cleanup EXIT
+          docker pull "immortalwrt/sdk:x86_64@sha256:711f23be365907cad96926aad7d4a69addbfe1f602bf858e58f864b3dd0eb537"
+          cid=$(docker create "immortalwrt/sdk:x86_64@sha256:711f23be365907cad96926aad7d4a69addbfe1f602bf858e58f864b3dd0eb537")
+          sudo mkdir -p /home/build
+          sudo docker cp "$cid:/home/build/immortalwrt" "$sdk"
+          sudo chown -R "$(id -u):$(id -g)" "$sdk"
+          docker rm "$cid" >/dev/null
+          cid=
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends   build-essential ccache cpio curl file g++-multilib gawk gcc-multilib   genisoimage gettext git libdw-dev libelf-dev libncurses-dev locales   pv pwgen python3 python3-pip python3-cryptography python3-pyelftools   qemu-utils rsync signify-openbsd subversion swig unzip wget zlib1g-dev   zstd clang-18 libclang-18-dev lld-18 shfmt
+          curl -fsSL --retry 3   "https://raw.githubusercontent.com/immortalwrt/gh-action-sdk/c4848d7f7d899d80e6d98630f0a21ab2e9c4724f/entrypoint.sh"   -o "$RUNNER_TEMP/immortal-entrypoint.sh"
+          printf '%s  %s\n' '87daa8ca223a925253c0b93c33a5a0417705467bbfbf27a4a2a3cd3ffe10ac32' "$RUNNER_TEMP/immortal-entrypoint.sh" | sha256sum -c -
+          export PATH="$sdk/staging_dir/host/bin:$sdk/staging_dir/hostpkg/bin:$PATH"
+          getconf GNU_LIBC_VERSION
+          "$sdk/staging_dir/host/bin/fakeroot" /usr/bin/true
+          "$sdk/staging_dir/host/bin/apk" --version
+          sudo mkdir /feed /artifacts
+          sudo mount --bind "$GITHUB_WORKSPACE" /feed
+          feed_mounted=1
+          sudo mount --bind "$GITHUB_WORKSPACE" /artifacts
+          artifacts_mounted=1
+          cd "$sdk"
+          bash "$RUNNER_TEMP/immortal-entrypoint.sh"
+          for pattern in '51ddns-agent-0.6.6-r1.apk' 'luci-app-51ddns-0.1.6-r1.apk' 'luci-i18n-51ddns-zh-cn-*.apk'; do
+            package_file=$(find "$GITHUB_WORKSPACE/bin" -type f -name "$pattern" -print -quit)
+            if [ -z "$package_file" ]; then
+              echo "Required output package missing: $pattern" >&2
+              exit 1
+            fi
+            sha256sum "$package_file"
+          done
       - name: Upload ImmortalWrt packages
         uses: actions/upload-artifact@v4
         with:
