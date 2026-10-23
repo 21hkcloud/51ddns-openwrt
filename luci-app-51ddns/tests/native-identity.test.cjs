@@ -12,6 +12,20 @@ const shell = process.env.DDNS_TEST_SH || (process.platform === 'win32' ? 'C:/Pr
 const firstID = '00000000-0000-4000-8000-000000000001';
 const secondID = '00000000-0000-4000-8000-000000000002';
 
+test('RPC emits only fixed activation and relay error categories', () => {
+	const start = rpc.indexOf('\tcase "$status_error_code" in');
+	const end = rpc.indexOf('\n\tjson_dump', start);
+	assert.ok(start >= 0 && end > start);
+	const script = 'status_error_code="$DDNS_ERROR"\nstatus_updated_at="2026-10-06T08:00:00Z"\n' +
+		'json_add_string() { [ "$1" != error_code ] || printf "%s" "$2"; }\n' + rpc.slice(start, end);
+	const known = ['device_quota_exceeded', 'frpc_config_write_failed', 'frpc_start_failed', 'frpc_process_exited'];
+	for (const error of [...known, 'invalid_token', 'private-path-or-token', 'frpc_start_failed\nprivate-data']) {
+		const result = spawnSync(shell, ['-c', script], { encoding: 'utf8', env: { ...process.env, DDNS_ERROR: error } });
+		assert.equal(result.status, 0, result.stderr);
+		assert.equal(result.stdout, known.includes(error) ? error : '');
+	}
+});
+
 function fixture(t, content) {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ddns-identity-'));
 	t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

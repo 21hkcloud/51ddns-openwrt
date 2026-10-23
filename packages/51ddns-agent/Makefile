@@ -4,14 +4,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=51ddns-agent
-PKG_VERSION:=0.6.5
-PKG_RELEASE:=5
+PKG_VERSION:=0.6.6
+PKG_RELEASE:=2
 
-PKG_SOURCE_COMMIT:=c2aaf071964ceffb419b44e96f840b9a91ce974d
-PKG_SOURCE:=51ddns-openwrt-$(PKG_SOURCE_COMMIT).tar.gz
-PKG_SOURCE_URL:=https://codeload.github.com/21hkcloud/51ddns-openwrt/tar.gz/$(PKG_SOURCE_COMMIT)?
-PKG_HASH:=e3c7c404372fa15094a737b4aec569bb94bf54a79fb318a04dc9f3ca4d3203a7
-PKG_BUILD_DIR:=$(BUILD_DIR)/51ddns-openwrt-$(PKG_SOURCE_COMMIT)
+PKG_SOURCE:=51ddns-openwrt-0.6.6.tar.gz
+PKG_SOURCE_URL:=https://github.com/21hkcloud/51ddns-openwrt/releases/download/v0.6.6-r1
+PKG_HASH:=85a1c2faf96747eec5a8fc7ae83a217ed15c3dfc42ca67f7f686f07202c5d216
+PKG_BUILD_DIR:=$(BUILD_DIR)/51ddns-openwrt-0.6.6
 
 PKG_MAINTAINER:=Jinshuan Wang <21hkcloud@gmail.com>
 PKG_LICENSE:=Apache-2.0
@@ -35,7 +34,7 @@ define Package/51ddns-agent
   TITLE:=Client for the 51DDNS remote access cloud
   URL:=https://github.com/21hkcloud/51ddns-openwrt
   DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle +frpc
-  EXTRA_DEPENDS:=frpc (>=0.52.0)
+  EXTRA_DEPENDS:=frpc (>=0.51.3)
   USERID:=ddns51:ddns51
 endef
 
