@@ -305,6 +305,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends   build-essential ccache cpio curl file g++-multilib gawk gcc-multilib   genisoimage gettext git libdw-dev libelf-dev libncurses-dev locales   pv pwgen python3 python3-pip python3-cryptography python3-pyelftools   qemu-utils rsync signify-openbsd subversion swig unzip wget zlib1g-dev   zstd clang-18 libclang-18-dev lld-18 shfmt
           curl -fsSL --retry 3   "https://raw.githubusercontent.com/immortalwrt/gh-action-sdk/c4848d7f7d899d80e6d98630f0a21ab2e9c4724f/entrypoint.sh"   -o "$RUNNER_TEMP/immortal-entrypoint.sh"
           printf '%s  %s\n' '87daa8ca223a925253c0b93c33a5a0417705467bbfbf27a4a2a3cd3ffe10ac32' "$RUNNER_TEMP/immortal-entrypoint.sh" | sha256sum -c -
+          export STAGING_DIR_HOST="$sdk/staging_dir/host"
           export PATH="$sdk/staging_dir/host/bin:$sdk/staging_dir/hostpkg/bin:$PATH"
           getconf GNU_LIBC_VERSION
           "$sdk/staging_dir/host/bin/fakeroot" /usr/bin/true
