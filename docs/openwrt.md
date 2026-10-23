@@ -17,20 +17,40 @@ The LuCI package is maintained and reviewed separately in the official
 
 ### OpenWrt 24.10 and iStore
 
-OpenWrt 24.10's official frpc 0.51.3 cannot read the TOML configuration used
-by the agent. Agent 0.6.4-r2 requires frpc 0.52.0 or later. Before installing
-through iStore on 24.10, add the signed 51DDNS feed that supplies a compatible
-frpc. The current 24.10.8 feed provides Agent 0.6.4-r2 and frpc 0.70.0-r3 for
-x86_64, aarch64_cortex-a53 and mipsel_24kc.
+Agent 0.6.6-r2 supports the official OpenWrt 24.10 `frpc` 0.51.3 package.
+It detects the installed FRPC version and generates compatible INI for exactly
+0.51.3; FRPC 0.52.0 or later uses TOML. Unsupported versions and configurations
+that cannot be represented safely are rejected. Do not force dependencies.
+Older Agent 0.6.4 packages do not have this compatibility path.
 
-The official installer below verifies the pinned public key, adds the signed
-feed, refreshes opkg and installs Agent and LuCI. Afterwards iStore shows the
-installed application. Run it on the router as root after checking that the
-router has Internet access and runs OpenWrt 24.10.x:
+The validated combinations are OpenWrt 24.10.8 with FRPC 0.51.3 and OpenWrt
+25.12.5 with FRPC 0.66.0, on x86_64 and aarch64. These are isolated native
+installation, upgrade, rollback and synthetic connectivity tests, not a claim
+that every customer firmware or router has been tested.
 
-中文说明：OpenWrt 24.10 自带的旧版 frpc 不兼容。先在路由器 SSH 中以 root
-运行以下官方脚本；脚本会校验公钥、添加签名源，并同时安装 51DDNS 和 LuCI。
-安装完成后再到 iStore 查看应用，无需强制忽略依赖。
+The self-hosted signed feed currently supplies Agent 0.6.6-r2 and LuCI
+0.1.6-r1 for these four targets. The new iStore package update remains under
+review. Until its public index actually lists the new version, an iStore
+installation can still select the old Agent 0.6.4-r1. OpenWrt packages/LuCI
+upstream acceptance and iStore publication are separate processes.
+
+Once the iStore update is indexed, use iStore with the normal OpenWrt feeds
+enabled. The Agent declares `frpc >=0.51.3`; the official feed supplies this
+dependency, so adding a vendor FRPC feed is not a prerequisite for the new
+version. Do not add shared FRPC to iStore's application-uninstall dependency
+list. On a firmware that lacks a compatible official dependency, stop and
+check its feeds instead of bypassing package validation.
+
+For the already published self-hosted feed, administrators may explicitly
+choose the installer below. It adds the signed 51DDNS feed and installs the
+Agent and LuCI; it changes router configuration and should only be run by the
+router administrator. It is not an iStore publication check.
+
+中文说明：新版 Agent 0.6.6-r2 已适配官方 frpc 0.51.3（自动生成 INI），
+0.52.0 及以上使用 TOML。商店新版仍待审核，旧版 0.6.4 不具备此适配。
+商店更新后应保留正常官方软件源，由包管理器选择满足最低版本的 frpc，
+无需为了新版本额外安装第三方 frpc；不要强制忽略依赖。
+以下脚本是主动选择自建签名源的安装方式，仅由路由器管理员执行。
 
 ```sh
 uclient-fetch -q -O /tmp/51ddns-repository.sh \
@@ -38,14 +58,19 @@ uclient-fetch -q -O /tmp/51ddns-repository.sh \
 sh /tmp/51ddns-repository.sh
 ```
 
-Check the installed versions before entering an account token:
+Before entering an account token, check installed versions with the package
+manager used by the firmware:
 
 ```sh
+# OpenWrt 24.10 / opkg
 opkg list-installed | grep -E '^(51ddns-agent|frpc|luci-app-51ddns) '
+# OpenWrt 25.12 / apk
+apk list --installed | grep -E '^(51ddns-agent|frpc|luci-app-51ddns)-'
 ```
 
-Do not force dependencies or install an APK on an IPK-based system. If the
-signed feed is unavailable, wait for it rather than installing the old frpc.
+Do not install an APK on an IPK-based system. MIPS and historical feed entries
+were not part of this four-target update; do not infer support from another
+architecture's result.
 
 ## Install
 
