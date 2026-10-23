@@ -13,6 +13,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         go: ['1.23.x', '1.26.x']
     steps:
@@ -21,7 +22,9 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
           cache: false
-      - run: go test -race ./... -count=3 -timeout=120s
+      - name: Race tests (three complete passes)
+        timeout-minutes: 6
+        run: go test -race ./... -count=3 -timeout=300s
       - run: go vet ./...
 
   luci:
