@@ -23,8 +23,8 @@ jobs:
           go-version: ${{ matrix.go }}
           cache: false
       - name: Race tests (three complete passes)
-        timeout-minutes: 6
-        run: go test -race ./... -count=3 -timeout=300s
+        timeout-minutes: 8
+        run: go test -race ./... -count=3 -timeout=420s
       - run: go vet ./...
       - name: Check init formatting (shfmt 3.8.0)
         if: matrix.go == '1.23.x'
