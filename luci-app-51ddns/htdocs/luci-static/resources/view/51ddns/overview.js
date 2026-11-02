@@ -3,6 +3,8 @@
 'require form';
 'require rpc';
 'require uci';
+'require poll';
+'require dom';
 
 const callServiceList = rpc.declare({
 	object: 'service',
@@ -73,8 +75,8 @@ function remainingState(value) {
 	};
 }
 
-function quotaExceeded(local, running) {
-	if (!running || local?.error_code !== 'device_quota_exceeded')
+function recentStatus(local, running) {
+	if (!running)
 		return false;
 
 	const updatedAt = Date.parse(local.updated_at || '');
@@ -83,7 +85,54 @@ function quotaExceeded(local, running) {
 	return Number.isFinite(age) && age >= -30000 && age <= 120000;
 }
 
+function quotaExceeded(local, running) {
+	return local?.error_code === 'device_quota_exceeded' && recentStatus(local, running);
+}
+
+function relayFailure(local, running) {
+	if (!recentStatus(local, running))
+		return null;
+	switch (local?.error_code) {
+		case 'frpc_config_write_failed':
+			return _('Cannot write the tunnel client configuration. Retrying automatically; check storage and permissions.');
+		case 'frpc_start_failed':
+			return _('Tunnel client could not start. Retrying automatically; check the frpc installation.');
+		case 'frpc_process_exited':
+			return _('Tunnel client exited. Retrying automatically; the agent continues attempting device reporting.');
+		default:
+			return null;
+	}
+}
+
 const deviceIDPattern = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+
+function routerEntryChildren(local, running) {
+            const host = local.router_web?.hostname || '';
+            const valid = /^router-[0-9a-f]{32}\.cdn\.cloud\.toddns\.com$/.test(host);
+            const messages = {
+                assigned: _('Address assigned. Waiting for the public tunnel connection.'),
+                ready: _('The management entry is reachable. Sign in with the owning account to open it.'),
+                disabled: _('Remote router management is disabled. A console-disabled or deleted entry is not recreated.'),
+                target_unavailable: _('Cannot identify the router Web service. Check the local management address.'),
+                port_in_use: _('The local management proxy port is already in use.'),
+                plan_required: _('Bind an active plan before creating the management address.'),
+                domain_quota_exceeded: _('No domain quota remains. Existing domains were not changed.'),
+                server_not_ready: _('The server has not enabled automatic router management yet.'),
+            };
+            const fresh = recentStatus(local, running);
+            const children = [ E('p', {}, fresh ? (messages[local.router_web?.state] || _('Synchronizing')) : _('Status is unavailable or expired.')) ];
+            if (fresh && valid && local.router_web?.state === 'ready') {
+                const address = 'https://' + host;
+                const addressInput = E('input', { readonly: true, value: address, style: 'width:100%', 'aria-label': _('Router management address') });
+                children.push(addressInput);
+                children.push(E('a', { class: 'btn cbi-button-action', href: address, target: '_blank', rel: 'noopener noreferrer' }, _('Open router management')));
+                children.push(E('button', { type: 'button', class: 'btn', click: () => {
+                    addressInput.focus(); addressInput.select();
+                    if (navigator.clipboard) navigator.clipboard.writeText(address).catch(() => {});
+                } }, _('Copy address')));
+            }
+            return children;
+}
 
 return view.extend({
 	load() {
@@ -101,6 +150,7 @@ return view.extend({
 		const info = data[3] || {};
 		const plan = local.plan || null;
 		const quotaBlocked = quotaExceeded(local, state.running);
+		const relayWarning = relayFailure(local, state.running);
 		const remaining = remainingState(plan?.expires_at);
 		const configuredDeviceID = uci.get('51ddns', 'main', 'device_id') || '';
 		const savedDeviceID = local.identity_state === 'saved' && deviceIDPattern.test(local.saved_device_id || '') ? local.saved_device_id : '';
@@ -117,8 +167,49 @@ return view.extend({
 		status.cfgvalue = () =>
 			`<span class="${state.className}"><strong>${state.label}</strong></span>`;
 
-		const version = section.option(form.DummyValue, '_version', _('Agent version'));
+		const entry = section.option(form.DummyValue, '_router_web', _('Router management'));
+        entry.renderWidget = () => {
+            const widget = E('div', { 'aria-live': 'polite' }, routerEntryChildren(local, state.running));
+            let connected = false;
+            let detachedTicks = 0;
+            const refresh = async () => {
+                if (!widget.isConnected) {
+                    if (connected || ++detachedTicks >= 3) poll.remove(refresh);
+                    return;
+                }
+                connected = true;
+                try {
+                    const [services, current] = await Promise.all([
+                        callServiceList('51ddns-agent'), callLocalStatus(),
+                    ]);
+                    if (widget.isConnected)
+                        dom.content(widget, routerEntryChildren(current || {}, serviceState(services).running));
+                    else poll.remove(refresh);
+                } catch {
+                    if (widget.isConnected)
+                        dom.content(widget, routerEntryChildren({}, false));
+                    else poll.remove(refresh);
+                }
+            };
+            poll.add(refresh, 5);
+            return widget;
+        };
+        const routerEnabled = section.option(form.Flag, 'router_web', _('Automatic router management address'));
+        routerEnabled.default = '0';
+        routerEnabled.rmempty = false;
+        routerEnabled.description = _('Uses one domain from this device plan and requires the owning account to sign in.');
+        const routerTarget = section.option(form.Value, 'router_web_target', _('Local router Web address (optional)'));
+        routerTarget.placeholder = 'http://127.0.0.1:80';
+        routerTarget.description = _('Leave blank to detect uhttpd. Only an IP on this router is accepted; HTTPS uses its configured public certificate.');
+        routerTarget.depends('router_web', '1');
+
+        const version = section.option(form.DummyValue, '_version', _('Agent version'));
 		version.cfgvalue = () => info.version || _('Unavailable');
+
+		if (relayWarning) {
+			const relay = section.option(form.DummyValue, '_relay', _('Tunnel client'));
+			relay.cfgvalue = () => relayWarning;
+		}
 
 		if (quotaBlocked) {
 			const quota = section.option(form.DummyValue, '_quota', _('Device quota'));

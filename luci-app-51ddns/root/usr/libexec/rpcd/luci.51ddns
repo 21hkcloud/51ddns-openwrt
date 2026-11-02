@@ -12,7 +12,7 @@ read_device_identity() {
 		status_identity_state='empty'
 		return
 	fi
-	status_device_id="$(cat /etc/51ddns/device.id 2>/dev/null)" || return
+	status_device_id="$(cat /etc/51ddns/device.id 2> /dev/null)" || return
 	if [ -z "$status_device_id" ]; then
 		status_identity_state='empty'
 	elif [ "${#status_device_id}" -eq 36 ] && printf '%s\n' "$status_device_id" | grep -Eq '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'; then
@@ -29,13 +29,20 @@ print_status() {
 	status_error_code=''
 	status_updated_at=''
 	status_payload=''
+	status_router_host=''
+	status_router_state=''
 
 	if [ -s /var/lib/51ddns/status.json ]; then
-		status_payload="$(cat /var/lib/51ddns/status.json 2>/dev/null)"
-		if json_load "$status_payload" 2>/dev/null; then
+		status_payload="$(cat /var/lib/51ddns/status.json 2> /dev/null)"
+		if json_load "$status_payload" 2> /dev/null; then
 			json_get_var status_error_code error_code
 			json_get_var status_updated_at updated_at
-			if json_select plan >/dev/null 2>&1; then
+			if json_select router_web > /dev/null 2>&1; then
+				json_get_var status_router_host hostname
+				json_get_var status_router_state state
+				json_select ..
+			fi
+			if json_select plan > /dev/null 2>&1; then
 				status_has_plan=1
 				json_get_var status_product_name product_name
 				json_get_var status_expires_at expires_at
@@ -47,6 +54,17 @@ print_status() {
 	json_init
 	read_device_identity
 	json_add_string identity_state "$status_identity_state"
+	json_add_object router_web
+	case "$status_router_state" in
+	ready | assigned | disabled | detecting | target_unavailable | port_in_use | plan_required | domain_quota_exceeded | server_not_ready | verification_unavailable) json_add_string state "$status_router_state" ;;
+	*) json_add_string state 'unavailable' ;;
+	esac
+	if printf '%s' "$status_router_host" | grep -Eq '^router-[0-9a-f]{32}\.cdn\.cloud\.toddns\.com$'; then
+		json_add_string hostname "$status_router_host"
+	fi
+	json_close_object
+	json_add_string updated_at "$status_updated_at"
+	json_add_string router_time "$(date -u +%Y-%m-%dT%H:%M:%SZ 2> /dev/null)"
 	if [ "$status_identity_state" = 'saved' ]; then
 		json_add_string saved_device_id "$status_device_id"
 	fi
@@ -56,39 +74,40 @@ print_status() {
 		json_add_string expires_at "$status_expires_at"
 		json_close_object
 	fi
-	if [ "$status_error_code" = 'device_quota_exceeded' ] && [ -n "$status_updated_at" ]; then
+	case "$status_error_code" in
+	device_quota_exceeded | frpc_config_write_failed | frpc_start_failed | frpc_process_exited) ;;
+	*) status_error_code='' ;;
+	esac
+	if [ -n "$status_error_code" ] && [ -n "$status_updated_at" ]; then
 		json_add_string error_code "$status_error_code"
-		json_add_string updated_at "$status_updated_at"
-		status_router_time="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
-		[ -n "$status_router_time" ] && json_add_string router_time "$status_router_time"
 	fi
 	json_dump
 	json_cleanup
 }
 
 case "$1" in
-	list)
-		echo '{"status":{},"info":{}}'
+list)
+	echo '{"status":{},"info":{}}'
+	;;
+call)
+	case "$2" in
+	status)
+		print_status
 		;;
-	call)
-		case "$2" in
-			status)
-				print_status
-				;;
-			info)
-				version="$(/usr/bin/51ddns-agent --version 2>/dev/null | head -n 1)"
-				json_init
-				json_add_string version "$version"
-				json_dump
-				json_cleanup
-				;;
-			*)
-				echo '{"error":"method not found"}'
-				exit 1
-				;;
-		esac
+	info)
+		version="$(/usr/bin/51ddns-agent --version 2> /dev/null | head -n 1)"
+		json_init
+		json_add_string version "$version"
+		json_dump
+		json_cleanup
 		;;
 	*)
+		echo '{"error":"method not found"}'
 		exit 1
 		;;
+	esac
+	;;
+*)
+	exit 1
+	;;
 esac

@@ -136,3 +136,66 @@ msgstr ""
 #: applications/luci-app-51ddns/htdocs/luci-static/resources/view/51ddns/overview.js:106
 msgid "Unavailable"
 msgstr ""
+
+msgid "Tunnel client"
+msgstr ""
+
+msgid "Cannot write the tunnel client configuration. Retrying automatically; check storage and permissions."
+msgstr ""
+
+msgid "Tunnel client could not start. Retrying automatically; check the frpc installation."
+msgstr ""
+
+msgid "Tunnel client exited. Retrying automatically; the agent continues attempting device reporting."
+msgstr ""
+
+msgid "Router management"
+msgstr ""
+
+msgid "Address assigned. Waiting for the public tunnel connection."
+msgstr ""
+
+msgid "The management entry is reachable. Sign in with the owning account to open it."
+msgstr ""
+
+msgid "Remote router management is disabled. A console-disabled or deleted entry is not recreated."
+msgstr ""
+
+msgid "Cannot identify the router Web service. Check the local management address."
+msgstr ""
+
+msgid "The local management proxy port is already in use."
+msgstr ""
+
+msgid "Bind an active plan before creating the management address."
+msgstr ""
+
+msgid "No domain quota remains. Existing domains were not changed."
+msgstr ""
+
+msgid "The server has not enabled automatic router management yet."
+msgstr ""
+
+msgid "Status is unavailable or expired."
+msgstr ""
+
+msgid "Router management address"
+msgstr ""
+
+msgid "Open router management"
+msgstr ""
+
+msgid "Copy address"
+msgstr ""
+
+msgid "Automatic router management address"
+msgstr ""
+
+msgid "Uses one domain from this device plan and requires the owning account to sign in."
+msgstr ""
+
+msgid "Local router Web address (optional)"
+msgstr ""
+
+msgid "Leave blank to detect uhttpd. Only an IP on this router is accepted; HTTPS uses its configured public certificate."
+msgstr ""

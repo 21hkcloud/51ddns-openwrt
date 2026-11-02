@@ -16,7 +16,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"runtime"
 	"sort"
@@ -53,11 +52,12 @@ type planStatus struct {
 }
 
 type localStatus struct {
-	DeviceID  string      `json:"device_id"`
-	Online    bool        `json:"online"`
-	Plan      *planStatus `json:"plan,omitempty"`
-	ErrorCode string      `json:"error_code,omitempty"`
-	UpdatedAt time.Time   `json:"updated_at"`
+	RouterWeb *routerWebStatus `json:"router_web,omitempty"`
+	DeviceID  string           `json:"device_id"`
+	Online    bool             `json:"online"`
+	Plan      *planStatus      `json:"plan,omitempty"`
+	ErrorCode string           `json:"error_code,omitempty"`
+	UpdatedAt time.Time        `json:"updated_at"`
 }
 
 const deviceQuotaErrorCode = "device_quota_exceeded"
@@ -71,11 +71,15 @@ type managedProcess struct {
 }
 
 type processExit struct {
-	relay string
-	err   error
+	relay    string
+	process  *managedProcess
+	err      error
+	exitedAt time.Time
 }
 
 type agent struct {
+	routerConfigPath   string
+	routerWeb          *routerWeb
 	apiURL             string
 	deviceToken        string
 	deviceID           string
@@ -89,6 +93,9 @@ type agent struct {
 	refresh            time.Duration
 	maxActiveRelays    int
 	httpClient         *http.Client
+	retryBase          time.Duration
+	relayErrorCode     string
+	lastLocalStatus    localStatus
 }
 
 func main() {
@@ -127,6 +134,7 @@ func load() (*agent, error) {
 	frpcPath := flags.String("frpc-path", value("FRPC_PATH", "frpc"), "path to the frpc executable")
 	configPath := flags.String("config-path", value("FRPC_CONFIG_PATH", "/var/lib/51ddns/frpc.toml"), "path used for generated frpc configuration")
 	statusPath := flags.String("status-path", value("STATUS_PATH", "/var/lib/51ddns/status.json"), "path used for non-sensitive local status")
+	routerConfig := flags.String("router-web-config", "", "local router web configuration file")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return nil, err
 	}
@@ -181,6 +189,7 @@ func load() (*agent, error) {
 		maxActiveRelays = parsed
 	}
 	return &agent{
+		routerConfigPath:   *routerConfig,
 		apiURL:             strings.TrimRight(*controlURL, "/"),
 		deviceToken:        token,
 		deviceID:           deviceID,
@@ -198,7 +207,10 @@ func load() (*agent, error) {
 }
 
 func (a *agent) run(ctx context.Context) error {
-	var last []relayConfiguration
+	if err := a.startRouterWeb(ctx); err != nil {
+		slog.Warn("router management configuration unavailable; existing tunnels continue")
+	}
+	a.relayErrorCode = ""
 	a.recordActivationStatus("")
 	for ctx.Err() == nil {
 		if a.deviceID == "" {
@@ -221,59 +233,8 @@ func (a *agent) run(ctx context.Context) error {
 			}
 			continue
 		}
-		processes, exits, err := a.startGroup(current)
-		if err != nil {
+		if err := a.runRelays(ctx, current); err != nil {
 			return err
-		}
-		last = cloneConfigurations(current)
-		slog.Info("tunnel clients started", "relays", len(processes))
-
-		ticker := time.NewTicker(a.refresh)
-		restart := false
-		for !restart {
-			select {
-			case <-ctx.Done():
-				ticker.Stop()
-				stopGroup(processes)
-				return ctx.Err()
-			case event := <-exits:
-				slog.Warn("tunnel client exited", "relay", event.relay, "error", event.err)
-				if !wait(ctx, 3*time.Second) {
-					ticker.Stop()
-					stopGroup(processes)
-					return ctx.Err()
-				}
-				for index, configuration := range current {
-					if configuration.RelayNode != event.relay {
-						continue
-					}
-					replacement, err := a.startProcess(configuration, len(current), exits)
-					if err != nil {
-						ticker.Stop()
-						stopGroup(processes)
-						return err
-					}
-					processes[index] = replacement
-					slog.Info("tunnel client restarted", "relay", configuration.RelayNode)
-					break
-				}
-			case <-ticker.C:
-				if err := a.reportIP(ctx); err != nil {
-					slog.Warn("public address report failed", "error", err)
-				}
-				updated, err := a.fetch(ctx)
-				if err != nil {
-					slog.Warn("configuration refresh failed", "error", err)
-					continue
-				}
-				if reflect.DeepEqual(updated, last) {
-					continue
-				}
-				ticker.Stop()
-				stopGroup(processes)
-				slog.Info("relay or route configuration changed; restarting tunnel clients")
-				restart = true
-			}
 		}
 		if !wait(ctx, 3*time.Second) {
 			break
@@ -377,36 +338,41 @@ func loadOrCreateInstallationID(path string) (string, error) {
 	return value, nil
 }
 
-func (a *agent) startGroup(configurations []relayConfiguration) ([]*managedProcess, chan processExit, error) {
-	exits := make(chan processExit, len(configurations))
-	processes := make([]*managedProcess, 0, len(configurations))
-	for _, configuration := range configurations {
-		process, err := a.startProcess(configuration, len(configurations), exits)
-		if err != nil {
-			stopGroup(processes)
-			return nil, nil, err
-		}
-		processes = append(processes, process)
+func (a *agent) startProcess(ctx context.Context, configuration relayConfiguration, total int, exits chan<- processExit) (*managedProcess, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-	return processes, exits, nil
-}
-
-func (a *agent) startProcess(configuration relayConfiguration, total int, exits chan<- processExit) (*managedProcess, error) {
+	version, err := detectFRPCVersion(ctx, a.frpcPath)
+	if err != nil {
+		return nil, &relayStartError{code: "frpc_start_failed", err: err}
+	}
+	body, err := configurationForFRPVersion(configuration.FRPCTOML, version)
+	if err != nil {
+		return nil, &relayStartError{code: "frpc_config_unsupported", err: err}
+	}
 	path := a.relayConfigPath(configuration.RelayNode, total)
-	if err := writePrivate(path, []byte(configuration.FRPCTOML)); err != nil {
-		return nil, fmt.Errorf("write %s frpc configuration: %w", configuration.RelayNode, err)
+	if err := writePrivate(path, []byte(body)); err != nil {
+		return nil, &relayStartError{code: "frpc_config_write_failed", err: err}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	cmd := exec.Command(a.frpcPath, "-c", path)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("start %s frpc: %w", configuration.RelayNode, err)
+		return nil, &relayStartError{code: "frpc_start_failed", err: err}
 	}
 	process := &managedProcess{relay: configuration.RelayNode, cmd: cmd, done: make(chan error, 1)}
 	go func() {
 		err := cmd.Wait()
+		exitedAt := time.Now()
 		process.done <- err
-		exits <- processExit{relay: configuration.RelayNode, err: err}
+		close(process.done)
+		select {
+		case exits <- processExit{relay: configuration.RelayNode, process: process, err: err, exitedAt: exitedAt}:
+		case <-ctx.Done():
+		}
 	}()
 	return process, nil
 }
@@ -472,6 +438,7 @@ func globalIPv6() string {
 }
 
 func (a *agent) fetch(ctx context.Context) ([]relayConfiguration, error) {
+	a.syncRouterWeb(ctx)
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, a.apiURL+"/v1/agent/config", nil)
 	if err != nil {
 		return nil, err
@@ -507,7 +474,10 @@ func (a *agent) fetch(ctx context.Context) ([]relayConfiguration, error) {
 		}
 		seen[item.RelayNode] = true
 	}
-	if err := a.writeLocalStatus(localStatus{DeviceID: a.deviceID, Online: true, Plan: result.Plan}); err != nil {
+	if a.routerWeb != nil {
+		a.routerWeb.checkPublic(ctx)
+	}
+	if err := a.writeLocalStatus(localStatus{DeviceID: a.deviceID, Online: true, Plan: result.Plan, ErrorCode: a.relayErrorCode}); err != nil {
 		slog.Warn("write local status failed", "error", err)
 	}
 	sort.Slice(result.RelayConfigs, func(i, j int) bool { return result.RelayConfigs[i].RelayNode < result.RelayConfigs[j].RelayNode })
@@ -525,10 +495,14 @@ func (a *agent) recordActivationStatus(errorCode string) {
 }
 
 func (a *agent) writeLocalStatus(status localStatus) error {
+	if a.routerWeb != nil {
+		status.RouterWeb = a.routerWeb.status()
+	}
+	status.UpdatedAt = time.Now().UTC()
+	a.lastLocalStatus = status
 	if strings.TrimSpace(a.statusPath) == "" {
 		return nil
 	}
-	status.UpdatedAt = time.Now().UTC()
 	payload, err := json.Marshal(status)
 	if err != nil {
 		return err
@@ -539,15 +513,12 @@ func (a *agent) writeLocalStatus(status localStatus) error {
 
 func (a *agent) authorizeRequest(request *http.Request) {
 	request.Header.Set("Authorization", "Bearer "+a.deviceToken)
+	if a.routerWeb != nil {
+		request.Header.Set("X-51DDNS-Router-Web", "1")
+	}
 	if a.deviceID != "" {
 		request.Header.Set("X-51DDNS-Device-ID", a.deviceID)
 	}
-}
-
-func cloneConfigurations(input []relayConfiguration) []relayConfiguration {
-	output := make([]relayConfiguration, len(input))
-	copy(output, input)
-	return output
 }
 
 func writePrivate(path string, content []byte) error {
@@ -580,8 +551,11 @@ func writePrivate(path string, content []byte) error {
 
 func stopGroup(processes []*managedProcess) {
 	var group sync.WaitGroup
-	group.Add(len(processes))
 	for _, process := range processes {
+		if process == nil {
+			continue
+		}
+		group.Add(1)
 		go func(item *managedProcess) {
 			defer group.Done()
 			stopProcess(item.cmd, item.done)
@@ -591,8 +565,13 @@ func stopGroup(processes []*managedProcess) {
 }
 
 func stopProcess(cmd *exec.Cmd, done <-chan error) {
-	if cmd.Process == nil {
+	if cmd == nil || cmd.Process == nil {
 		return
+	}
+	select {
+	case <-done:
+		return
+	default:
 	}
 	_ = cmd.Process.Signal(os.Interrupt)
 	select {

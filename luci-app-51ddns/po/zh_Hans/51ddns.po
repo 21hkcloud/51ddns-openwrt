@@ -44,3 +44,66 @@ msgstr "无法核实已保存的设备身份。请刷新页面后再设置设备
 
 msgid "Disable the agent and save first. Then enter the existing device ID and enable it again."
 msgstr "请先取消启用并保存，再填写已有设备 ID 并重新启用。"
+
+msgid "Tunnel client"
+msgstr "隧道客户端"
+
+msgid "Cannot write the tunnel client configuration. Retrying automatically; check storage and permissions."
+msgstr "无法写入隧道客户端配置，正在自动重试；请检查存储空间和权限。"
+
+msgid "Tunnel client could not start. Retrying automatically; check the frpc installation."
+msgstr "隧道客户端无法启动，正在自动重试；请检查 frpc 是否正确安装。"
+
+msgid "Tunnel client exited. Retrying automatically; the agent continues attempting device reporting."
+msgstr "隧道客户端已退出，正在自动重试；Agent 仍会尝试上报设备状态。"
+
+msgid "Router management"
+msgstr "路由器管理"
+
+msgid "Address assigned. Waiting for the public tunnel connection."
+msgstr "管理地址已分配，正在等待公网通道连通。"
+
+msgid "The management entry is reachable. Sign in with the owning account to open it."
+msgstr "管理入口已连通，使用设备所属账号验证后即可打开。"
+
+msgid "Remote router management is disabled. A console-disabled or deleted entry is not recreated."
+msgstr "远程管理已停用。在控制台停用或删除的入口不会自动重建。"
+
+msgid "Cannot identify the router Web service. Check the local management address."
+msgstr "未识别到路由器管理服务，请检查本地管理地址。"
+
+msgid "The local management proxy port is already in use."
+msgstr "本地管理代理端口已被占用。"
+
+msgid "Bind an active plan before creating the management address."
+msgstr "请先绑定有效套餐，再创建管理地址。"
+
+msgid "No domain quota remains. Existing domains were not changed."
+msgstr "域名额度已用完，现有域名未被修改。"
+
+msgid "The server has not enabled automatic router management yet."
+msgstr "服务端尚未启用自动路由器管理功能。"
+
+msgid "Status is unavailable or expired."
+msgstr "状态不可用或已过期。"
+
+msgid "Router management address"
+msgstr "路由器管理地址"
+
+msgid "Open router management"
+msgstr "打开路由器管理页面"
+
+msgid "Copy address"
+msgstr "复制地址"
+
+msgid "Automatic router management address"
+msgstr "自动分配路由器管理地址"
+
+msgid "Uses one domain from this device plan and requires the owning account to sign in."
+msgstr "占用本设备套餐的一个域名额度，访问时需要设备所属账号登录验证。"
+
+msgid "Local router Web address (optional)"
+msgstr "本地路由器管理地址（选填）"
+
+msgid "Leave blank to detect uhttpd. Only an IP on this router is accepted; HTTPS uses its configured public certificate."
+msgstr "留空则自动检测 uhttpd；仅允许本路由器的 IP 地址，HTTPS 使用其已配置的公开证书进行验证。"

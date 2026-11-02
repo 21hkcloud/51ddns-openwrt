@@ -8,13 +8,15 @@ const source = fs.readFileSync(path.join(__dirname, '..', 'htdocs', 'luci-static
 function renderOptions(local, running = true, config = {}) {
 	const options = [];
 	const removed = [];
+ const polls = []; options.polls = polls; options.rpc = {};
+ const removedPolls = []; options.removedPolls = removedPolls;
 	options.removed = removed;
 	class Map {
 		constructor(_name, _title, description) { options.mapDescription = description; }
 		section() {
 			return {
 				option(_kind, id) {
-					const option = { id, disabled: '0', formvalue: () => config[id], validate: () => true };
+					const option = { id, disabled: '0', depends: () => {}, formvalue: () => config[id], validate: () => true };
 					options.push(option);
 					return option;
 				},
@@ -23,12 +25,78 @@ function renderOptions(local, running = true, config = {}) {
 		render() { return options; }
 	}
 	const form = { Map, NamedSection: class {}, DummyValue: class {}, Button: class {}, Flag: class {}, Value: class {} };
-	const page = new Function('view', 'form', 'rpc', 'uci', 'L', '_', 'N_', 'window', source)(
-		{ extend: value => value }, form, { declare: () => () => ({}) },
-		{ get: (_package, _section, name) => config[name], unset: (...args) => removed.push(args) }, {}, value => value, () => '', {},
+	const page = new Function('view', 'form', 'rpc', 'uci', 'L', '_', 'N_', 'window', 'E', 'poll', 'dom', source)(
+		{ extend: value => value }, form, { declare: ({ method }) => () => options.rpc[method] instanceof Error ? Promise.reject(options.rpc[method]) : Promise.resolve(options.rpc[method] || {}) },
+		{ get: (_package, _section, name) => config[name], unset: (...args) => removed.push(args) }, {}, value => value, () => '', {}, (tag, attributes, children) => ({tag, attributes, children, isConnected: true}),
+ { add: (fn, interval) => polls.push({fn,interval}), remove: fn => removedPolls.push(fn) },
+ { content: (node, children) => { node.children = children; } },
 	);
 	return page.render([{}, { '51ddns-agent': { instances: { main: { running } } } }, { identity_state: 'empty', ...local }, {}]);
 }
+
+test('router entry is actionable only after fresh public readiness and a strict host', () => {
+	const host='router-12345678901234567890123456789012.cdn.cloud.toddns.com';
+	for (const [state, hostname, running, fresh, shown] of [
+		['ready',host,true,true,true],['assigned',host,true,true,false],['disabled',host,true,true,false],
+		['ready',host,false,true,false],['ready',host,true,false,false],['ready','evil.example',true,true,false],
+	]) {
+		const local={router_web:{state,hostname},updated_at:new Date(Date.now()-(fresh?0:121000)).toISOString()};
+		const widget=renderOptions(local,running).find(o=>o.id==='_router_web').renderWidget();
+		const links=widget.children.filter(c=>c.tag==='a');assert.equal(links.length,shown?1:0);
+		if(shown)assert.equal(links[0].attributes.href,'https://'+host);
+	}
+});
+
+test('live readiness appears without reloading or changing unsaved form inputs', async () => {
+ const host = 'router-12345678901234567890123456789012.cdn.cloud.toddns.com';
+ const options = renderOptions({ router_web: { state: 'assigned', hostname: host }, updated_at: new Date().toISOString() }, true, { router_web_target: 'http://127.0.0.1:8088' });
+ const widget = options.find(o => o.id === '_router_web').renderWidget();
+ assert.equal(widget.children.some(n => n.tag === 'a'), false);
+ assert.equal(options.polls.length, 1); assert.equal(options.polls[0].interval, 5);
+ options.rpc.list = { '51ddns-agent': { instances: { main: { running: true } } } };
+ options.rpc.status = { router_web: { state: 'ready', hostname: host }, updated_at: new Date().toISOString() };
+ await options.polls[0].fn();
+ assert.equal(widget.children.find(n => n.tag === 'a').attributes.href, 'https://' + host);
+ assert.equal(options.find(o => o.id === 'router_web_target').formvalue(), 'http://127.0.0.1:8088');
+ assert.deepEqual(options.removed, []);
+});
+
+test('live entry fails closed on stale state, stopped service, invalid host and RPC error', async () => {
+ const host = 'router-12345678901234567890123456789012.cdn.cloud.toddns.com';
+ const fresh = { router_web: { state: 'ready', hostname: host }, updated_at: new Date().toISOString() };
+ for (const [status, running] of [[{ ...fresh, updated_at: '2000-01-01T00:00:00Z' }, true], [fresh, false], [{ ...fresh, router_web: { state: 'ready', hostname: 'evil.example' } }, true], [new Error('offline'), true], [{ ...fresh, router_web: { state: 'disabled', hostname: host } }, true]]) {
+  const options = renderOptions(fresh);
+  const widget = options.find(o => o.id === '_router_web').renderWidget();
+  assert.ok(widget.children.some(n => n.tag === 'a'));
+  options.rpc.list = { '51ddns-agent': { instances: { main: { running } } } };
+  options.rpc.status = status;
+  await options.polls[0].fn();
+  assert.equal(widget.children.some(n => n.tag === 'a'), false);
+ }
+});
+
+test('polling stops after the entry is detached and discards an in-flight response', async () => {
+ const options = renderOptions({});
+ const widget = options.find(o => o.id === '_router_web').renderWidget();
+ await options.polls[0].fn();
+ let release;
+ options.rpc.status = new Promise(resolve => { release = resolve; });
+ const before = widget.children;
+ const pending = options.polls[0].fn();
+ widget.isConnected = false;
+ release({ router_web: { state: 'ready', hostname: 'router-12345678901234567890123456789012.cdn.cloud.toddns.com' }, updated_at: new Date().toISOString() });
+ await pending;
+ assert.equal(widget.children, before);
+ assert.equal(options.removedPolls[0], options.polls[0].fn);
+});
+
+test('an unmounted discarded render does not leave a permanent poll callback', async () => {
+ const options = renderOptions({});
+ const widget = options.find(o => o.id === '_router_web').renderWidget();
+ widget.isConnected = false;
+ for (let i = 0; i < 3; i++) await options.polls[0].fn();
+ assert.equal(options.removedPolls.length, 1);
+});
 
 test('recent device quota renders red guidance and the real plans link', () => {
 	const options = renderOptions({ error_code: 'device_quota_exceeded', updated_at: new Date().toISOString() });
@@ -62,6 +130,38 @@ test('quota guidance is suppressed for stale, unrelated, or stopped status', () 
 		[{ error_code: 'device_quota_exceeded' }, true],
 	]) {
 		assert.equal(renderOptions(local, running).some(option => option.id === '_quota'), false);
+	}
+});
+
+test('relay failures show fixed retry guidance without claiming tunnel registration', () => {
+	for (const [code, message] of [
+		['frpc_config_write_failed', /check storage and permissions/],
+		['frpc_start_failed', /check the frpc installation/],
+		['frpc_process_exited', /attempting device reporting/],
+	]) {
+		const options = renderOptions({ error_code: code, updated_at: new Date().toISOString(), error: '<script>private-token</script>' });
+		const relay = options.find(option => option.id === '_relay');
+		assert.ok(relay);
+		assert.notEqual(relay.rawhtml, true);
+		assert.match(relay.cfgvalue(), message);
+		assert.match(relay.cfgvalue(), /Retrying automatically/);
+		assert.doesNotMatch(relay.cfgvalue(), /private-token|script|registered|connected/i);
+		assert.equal(options.some(option => option.id === '_quota'), false);
+	}
+});
+
+test('relay warnings obey router time and suppress stale, unknown and stopped states', () => {
+	const updated_at = '2026-01-01T00:00:00Z';
+	const current = { error_code: 'frpc_start_failed', updated_at, router_time: '2026-01-01T00:00:30Z' };
+	assert.equal(renderOptions(current).some(option => option.id === '_relay'), true);
+	for (const [local, running] of [
+		[{ ...current, router_time: '2026-01-01T00:02:01Z' }, true],
+		[{ ...current, error_code: 'constructor' }, true],
+		[{ ...current, error_code: 'device_quota_exceeded' }, true],
+		[{ ...current, updated_at: '' }, true],
+		[current, false],
+	]) {
+		assert.equal(renderOptions(local, running).some(option => option.id === '_relay'), false);
 	}
 });
 

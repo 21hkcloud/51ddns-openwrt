@@ -50,7 +50,7 @@ check_device_identity() {
 
 verify_device_identity() {
 	printf '%s' "$account_token" | /usr/bin/51ddns-agent verify-identity \
-		--device-id "$1" --control-api-url "$control_url" >/dev/null
+		--device-id "$1" --control-api-url "$control_url" > /dev/null
 }
 
 discard_identity_stage() {
@@ -171,6 +171,31 @@ write_identity_files() {
 	finish_identity_transaction
 }
 
+write_router_web_config() (
+	. /usr/share/libubox/jshn.sh
+	local enabled target cert address stage
+	enabled="$(uci -q get 51ddns.main.router_web)"
+	target="$(uci -q get 51ddns.main.router_web_target)"
+	cert="$(uci -q get uhttpd.main.cert)"
+	json_init
+	[ "$enabled" = 1 ] && json_add_boolean enabled 1 || json_add_boolean enabled 0
+	json_add_string target "$target"
+	json_add_array http
+	for address in $(uci -q get uhttpd.main.listen_http); do json_add_string '' "$address"; done
+	json_close_array
+	json_add_array https
+	for address in $(uci -q get uhttpd.main.listen_https); do json_add_string '' "$address"; done
+	json_close_array
+	if [ -f "$cert" ] && [ "$(wc -c < "$cert")" -le 32768 ]; then
+		json_add_string certificate "$(sed -n '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/p' "$cert")"
+	fi
+	stage="$(mktemp "$RUNTIME_DIR/.router-web.XXXXXX")" || exit 1
+	json_dump > "$stage" && chown "$SERVICE_USER:$SERVICE_GROUP" "$stage" && chmod 0600 "$stage" && mv "$stage" "$RUNTIME_DIR/router-web.json" || {
+		rm -f "$stage"
+		exit 1
+	}
+)
+
 start_service() {
 	local enabled control_url account_token device_id refresh_seconds
 	local start_delay_seconds max_active_relays oem_voucher_file
@@ -219,11 +244,11 @@ start_service() {
 	check_device_identity "$device_id" || return 1
 
 	go_memory_limit='128MiB'
-	case "$(uname -m 2>/dev/null)" in
-		mips*)
-			[ "$max_active_relays" -gt 0 ] || max_active_relays=1
-			go_memory_limit='48MiB'
-			;;
+	case "$(uname -m 2> /dev/null)" in
+	mips*)
+		[ "$max_active_relays" -gt 0 ] || max_active_relays=1
+		go_memory_limit='48MiB'
+		;;
 	esac
 
 	mkdir -p "$SECRET_DIR" "$RUNTIME_DIR" || return 1
@@ -231,6 +256,7 @@ start_service() {
 	chmod 0700 "$SECRET_DIR" "$RUNTIME_DIR" || return 1
 	umask 077
 	write_identity_files || return 1
+	write_router_web_config || return 1
 
 	procd_open_instance 51ddns-agent
 	procd_set_param command /usr/libexec/51ddns-agent-start \
@@ -241,7 +267,8 @@ start_service() {
 		--oem-voucher-file "$oem_voucher_file" \
 		--control-api-url "$control_url" \
 		--frpc-path /usr/bin/frpc \
-		--config-path "$RUNTIME_DIR/frpc.toml"
+		--config-path "$RUNTIME_DIR/frpc.toml" \
+		--router-web-config "$RUNTIME_DIR/router-web.json"
 	procd_set_param env CONFIG_REFRESH_SECONDS="$refresh_seconds" \
 		MAX_ACTIVE_RELAYS="$max_active_relays" \
 		START_DELAY_SECONDS="$start_delay_seconds" \
@@ -254,7 +281,7 @@ start_service() {
 	procd_set_param user "$SERVICE_USER"
 	procd_set_param group "$SERVICE_GROUP"
 	procd_set_param no_new_privs 1
-	procd_set_param file /etc/config/51ddns
+	procd_set_param file /etc/config/51ddns "$RUNTIME_DIR/router-web.json"
 
 	procd_add_jail 51ddns-agent log
 	procd_add_jail_mount /etc/hosts
@@ -272,18 +299,18 @@ start_service() {
 }
 
 service_triggers() {
-	procd_add_reload_trigger 51ddns
+	procd_add_reload_trigger 51ddns uhttpd
 }
 
 service_started() {
 	# A retry started by the helper must not replace that helper's own procd instance.
 	[ "${_51DDNS_IDENTITY_RETRY:-0}" = 1 ] && return 0
 	[ -x /etc/init.d/51ddns-agent-retry ] || return 0
-	/etc/init.d/51ddns-agent-retry restart >/dev/null 2>&1 ||
+	/etc/init.d/51ddns-agent-retry restart > /dev/null 2>&1 ||
 		logger -t 51ddns-agent "identity retry service could not be started"
 }
 
 stop_service() {
 	[ -x /etc/init.d/51ddns-agent-retry ] || return 0
-	/etc/init.d/51ddns-agent-retry stop >/dev/null 2>&1 || :
+	/etc/init.d/51ddns-agent-retry stop > /dev/null 2>&1 || :
 }
