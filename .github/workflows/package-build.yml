@@ -93,6 +93,13 @@ jobs:
             'CONFIG_PACKAGE_51ddns-agent=m' \
             'CONFIG_PACKAGE_luci-app-51ddns=m' >> .config
           make defconfig
+          source_archive="${GITHUB_WORKSPACE}/.github/source-inputs/51ddns-openwrt-0.6.7.tar.gz"
+          printf '%s  %s\n' 'f128bd1a163175a9a3590ea64909597c16f499ee14d08c76c2fd261a1489d595' "$source_archive" | sha256sum -c -
+          package_makefile="${GITHUB_WORKSPACE}/packages/51ddns-agent/Makefile"
+          grep -Fx 'PKG_SOURCE_URL:=https://github.com/21hkcloud/51ddns-openwrt/releases/download/v0.6.7-r3' "$package_makefile"
+          grep -Fx 'PKG_HASH:=f128bd1a163175a9a3590ea64909597c16f499ee14d08c76c2fd261a1489d595' "$package_makefile"
+          sed -i "s#^PKG_SOURCE_URL:=https://github.com/21hkcloud/51ddns-openwrt/releases/download/v0.6.7-r3#PKG_SOURCE_URL:=file://${GITHUB_WORKSPACE}/.github/source-inputs#" "$package_makefile"
+          grep -Fx "PKG_SOURCE_URL:=file://${GITHUB_WORKSPACE}/.github/source-inputs" "$package_makefile"
           make package/51ddns-agent/download V=s
           make -j"$(nproc)" package/51ddns-agent/compile V=s
           # A release SDK does not ship target development headers. Stage the
@@ -208,6 +215,13 @@ jobs:
             'CONFIG_PACKAGE_51ddns-agent=m' \
             'CONFIG_PACKAGE_luci-app-51ddns=m' >> .config
           make defconfig
+          source_archive="${GITHUB_WORKSPACE}/.github/source-inputs/51ddns-openwrt-0.6.7.tar.gz"
+          printf '%s  %s\n' 'f128bd1a163175a9a3590ea64909597c16f499ee14d08c76c2fd261a1489d595' "$source_archive" | sha256sum -c -
+          package_makefile="${GITHUB_WORKSPACE}/packages/51ddns-agent/Makefile"
+          grep -Fx 'PKG_SOURCE_URL:=https://github.com/21hkcloud/51ddns-openwrt/releases/download/v0.6.7-r3' "$package_makefile"
+          grep -Fx 'PKG_HASH:=f128bd1a163175a9a3590ea64909597c16f499ee14d08c76c2fd261a1489d595' "$package_makefile"
+          sed -i "s#^PKG_SOURCE_URL:=https://github.com/21hkcloud/51ddns-openwrt/releases/download/v0.6.7-r3#PKG_SOURCE_URL:=file://${GITHUB_WORKSPACE}/.github/source-inputs#" "$package_makefile"
+          grep -Fx "PKG_SOURCE_URL:=file://${GITHUB_WORKSPACE}/.github/source-inputs" "$package_makefile"
           make package/51ddns-agent/download V=s
           make -j"$(nproc)" package/51ddns-agent/compile V=s
           # A release SDK does not ship target development headers. Stage the
@@ -254,6 +268,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Verify frozen source input for ImmortalWrt SDKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_archive="${GITHUB_WORKSPACE}/.github/source-inputs/51ddns-openwrt-0.6.7.tar.gz"
+          printf '%s  %s\n' 'f128bd1a163175a9a3590ea64909597c16f499ee14d08c76c2fd261a1489d595' "$source_archive" | sha256sum -c -
+          package_makefile="${GITHUB_WORKSPACE}/packages/51ddns-agent/Makefile"
+          grep -Fx 'PKG_SOURCE_URL:=https://github.com/21hkcloud/51ddns-openwrt/releases/download/v0.6.7-r3' "$package_makefile"
+          grep -Fx 'PKG_HASH:=f128bd1a163175a9a3590ea64909597c16f499ee14d08c76c2fd261a1489d595' "$package_makefile"
+          sed -i 's#^PKG_SOURCE_URL:=https://github.com/21hkcloud/51ddns-openwrt/releases/download/v0.6.7-r3#PKG_SOURCE_URL:=file:///feed/.github/source-inputs#' "$package_makefile"
+          grep -Fx 'PKG_SOURCE_URL:=file:///feed/.github/source-inputs' "$package_makefile"
       - name: Build agent package from source
         if: matrix.arch != 'x86_64'
         uses: immortalwrt/gh-action-sdk@master
@@ -316,7 +341,7 @@ jobs:
           artifacts_mounted=1
           cd "$sdk"
           bash "$RUNNER_TEMP/immortal-entrypoint.sh"
-          for pattern in '51ddns-agent-0.6.6-r2.apk' 'luci-app-51ddns-0.1.6-r1.apk' 'luci-i18n-51ddns-zh-cn-*.apk'; do
+          for pattern in '51ddns-agent-0.6.7-r3.apk' 'luci-app-51ddns-0.1.7-r3.apk' 'luci-i18n-51ddns-zh-cn-*.apk'; do
             package_file=$(find "$GITHUB_WORKSPACE/bin" -type f -name "$pattern" -print -quit)
             if [ -z "$package_file" ]; then
               echo "Required output package missing: $pattern" >&2
