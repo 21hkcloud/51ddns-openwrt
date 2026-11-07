@@ -69,7 +69,8 @@ jobs:
             package/libs/libubox package/libs/zlib package/network/utils/iwinfo \
             package/system/rpcd package/system/ubus package/system/uci \
             package/utils/lua package/utils/ucode \
-            package/libs/mbedtls package/system/ca-certificates package/utils/util-linux
+            package/libs/mbedtls package/libs/ncurses \
+            package/system/ca-certificates package/utils/util-linux
           mkdir -p "${deps_feed}"
           cp -a "${deps_source}/package/libs/libjson-c" "${deps_feed}/libjson-c"
           cp -a "${deps_source}/package/libs/libmd" "${deps_feed}/libmd"
@@ -83,6 +84,7 @@ jobs:
           cp -a "${deps_source}/package/utils/lua" "${deps_feed}/lua"
           cp -a "${deps_source}/package/utils/ucode" "${deps_feed}/ucode"
           cp -a "${deps_source}/package/libs/mbedtls" "${deps_feed}/mbedtls"
+          cp -a "${deps_source}/package/libs/ncurses" "${deps_feed}/ncurses"
           cp -a "${deps_source}/package/system/ca-certificates" "${deps_feed}/ca-certificates"
           cp -a "${deps_source}/package/utils/util-linux" "${deps_feed}/util-linux"
 
@@ -110,6 +112,7 @@ jobs:
           # LuCI build dependencies before compiling their consumers.
           make -j1 package/feeds/sdkdeps/zlib/compile V=s
           make -j1 package/feeds/sdkdeps/mbedtls/compile V=s
+          make -j1 package/feeds/sdkdeps/ncurses/compile V=s
           make -j1 package/feeds/sdkdeps/libmd/compile V=s
           make -j1 package/feeds/sdkdeps/libjson-c/host/compile V=s
           make -j1 package/feeds/sdkdeps/libjson-c/compile V=s
@@ -195,7 +198,8 @@ jobs:
             package/libs/libubox package/libs/zlib package/network/utils/iwinfo \
             package/system/rpcd package/system/ubus package/system/uci \
             package/utils/lua package/utils/ucode \
-            package/libs/mbedtls package/system/ca-certificates package/utils/util-linux
+            package/libs/mbedtls package/libs/ncurses \
+            package/system/ca-certificates package/utils/util-linux
           mkdir -p "${deps_feed}"
           cp -a "${deps_source}/package/libs/libjson-c" "${deps_feed}/libjson-c"
           cp -a "${deps_source}/package/libs/libmd" "${deps_feed}/libmd"
@@ -209,6 +213,7 @@ jobs:
           cp -a "${deps_source}/package/utils/lua" "${deps_feed}/lua"
           cp -a "${deps_source}/package/utils/ucode" "${deps_feed}/ucode"
           cp -a "${deps_source}/package/libs/mbedtls" "${deps_feed}/mbedtls"
+          cp -a "${deps_source}/package/libs/ncurses" "${deps_feed}/ncurses"
           cp -a "${deps_source}/package/system/ca-certificates" "${deps_feed}/ca-certificates"
           cp -a "${deps_source}/package/utils/util-linux" "${deps_feed}/util-linux"
 
@@ -237,6 +242,7 @@ jobs:
           # LuCI build dependencies before compiling their consumers.
           make -j1 package/feeds/sdkdeps/zlib/compile V=s
           make -j1 package/feeds/sdkdeps/mbedtls/compile V=s
+          make -j1 package/feeds/sdkdeps/ncurses/compile V=s
           make -j1 package/feeds/sdkdeps/libmd/compile V=s
           make -j1 package/feeds/sdkdeps/libjson-c/host/compile V=s
           make -j1 package/feeds/sdkdeps/libjson-c/compile V=s
