@@ -68,7 +68,8 @@ jobs:
             package/libs/libjson-c package/libs/libmd package/libs/libnl-tiny \
             package/libs/libubox package/libs/zlib package/network/utils/iwinfo \
             package/system/rpcd package/system/ubus package/system/uci \
-            package/utils/lua package/utils/ucode
+            package/utils/lua package/utils/ucode \
+            package/libs/mbedtls package/system/ca-certificates package/utils/util-linux
           mkdir -p "${deps_feed}"
           cp -a "${deps_source}/package/libs/libjson-c" "${deps_feed}/libjson-c"
           cp -a "${deps_source}/package/libs/libmd" "${deps_feed}/libmd"
@@ -81,6 +82,9 @@ jobs:
           cp -a "${deps_source}/package/system/uci" "${deps_feed}/uci"
           cp -a "${deps_source}/package/utils/lua" "${deps_feed}/lua"
           cp -a "${deps_source}/package/utils/ucode" "${deps_feed}/ucode"
+          cp -a "${deps_source}/package/libs/mbedtls" "${deps_feed}/mbedtls"
+          cp -a "${deps_source}/package/system/ca-certificates" "${deps_feed}/ca-certificates"
+          cp -a "${deps_source}/package/utils/util-linux" "${deps_feed}/util-linux"
 
           # Keep every feed at the exact revision used to publish this SDK.
           curl -fsSL --retry 3 "${release_base}/feeds.buildinfo" -o feeds.conf
@@ -103,8 +107,9 @@ jobs:
           make package/51ddns-agent/download V=s
           make -j"$(nproc)" package/51ddns-agent/compile V=s
           # A release SDK does not ship target development headers. Stage the
-          # three LuCI build dependencies before compiling their consumers.
+          # LuCI build dependencies before compiling their consumers.
           make -j1 package/feeds/sdkdeps/zlib/compile V=s
+          make -j1 package/feeds/sdkdeps/mbedtls/compile V=s
           make -j1 package/feeds/sdkdeps/libmd/compile V=s
           make -j1 package/feeds/sdkdeps/libjson-c/host/compile V=s
           make -j1 package/feeds/sdkdeps/libjson-c/compile V=s
@@ -189,7 +194,8 @@ jobs:
             package/libs/libjson-c package/libs/libmd package/libs/libnl-tiny \
             package/libs/libubox package/libs/zlib package/network/utils/iwinfo \
             package/system/rpcd package/system/ubus package/system/uci \
-            package/utils/lua package/utils/ucode
+            package/utils/lua package/utils/ucode \
+            package/libs/mbedtls package/system/ca-certificates package/utils/util-linux
           mkdir -p "${deps_feed}"
           cp -a "${deps_source}/package/libs/libjson-c" "${deps_feed}/libjson-c"
           cp -a "${deps_source}/package/libs/libmd" "${deps_feed}/libmd"
@@ -202,6 +208,9 @@ jobs:
           cp -a "${deps_source}/package/system/uci" "${deps_feed}/uci"
           cp -a "${deps_source}/package/utils/lua" "${deps_feed}/lua"
           cp -a "${deps_source}/package/utils/ucode" "${deps_feed}/ucode"
+          cp -a "${deps_source}/package/libs/mbedtls" "${deps_feed}/mbedtls"
+          cp -a "${deps_source}/package/system/ca-certificates" "${deps_feed}/ca-certificates"
+          cp -a "${deps_source}/package/utils/util-linux" "${deps_feed}/util-linux"
 
           # Match the feeds used by this release SDK while building 51DDNS
           # directly from the checked-out source tree.
@@ -225,8 +234,9 @@ jobs:
           make package/51ddns-agent/download V=s
           make -j"$(nproc)" package/51ddns-agent/compile V=s
           # A release SDK does not ship target development headers. Stage the
-          # three LuCI build dependencies before compiling their consumers.
+          # LuCI build dependencies before compiling their consumers.
           make -j1 package/feeds/sdkdeps/zlib/compile V=s
+          make -j1 package/feeds/sdkdeps/mbedtls/compile V=s
           make -j1 package/feeds/sdkdeps/libmd/compile V=s
           make -j1 package/feeds/sdkdeps/libjson-c/host/compile V=s
           make -j1 package/feeds/sdkdeps/libjson-c/compile V=s
