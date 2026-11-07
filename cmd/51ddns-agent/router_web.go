@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -12,11 +13,13 @@ import (
 	"encoding/pem"
 	"errors"
 	"io"
+	"mime"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,31 +28,38 @@ import (
 
 const routerCookie = "__Host-51ddns-router"
 const routerConsole = "https://console.51ddns.com"
+const directRouterCredentialProof = "/var/run/51ddns-router-credential/ready"
 
 type routerWebConfig struct {
-	Enabled     bool     `json:"enabled"`
-	Target      string   `json:"target"`
-	HTTP        []string `json:"http"`
-	HTTPS       []string `json:"https"`
-	Certificate string   `json:"certificate"`
+	Enabled        bool     `json:"enabled"`
+	Target         string   `json:"target"`
+	HTTP           []string `json:"http"`
+	HTTPS          []string `json:"https"`
+	Certificate    string   `json:"certificate"`
+	DirectHostname string   `json:"direct_hostname"`
 }
 type routerWebStatus struct {
-	Hostname string `json:"hostname,omitempty"`
-	State    string `json:"state"`
+	Hostname  string `json:"hostname,omitempty"`
+	State     string `json:"state"`
+	CheckedAt string `json:"checked_at,omitempty"`
 }
 type routerWeb struct {
-	mu          sync.RWMutex
-	config      routerWebConfig
-	api         string
-	token       string
-	device      string
-	host        string
-	state       string
-	proxy       *httputil.ReverseProxy
-	client      *http.Client
-	probeClient *http.Client
-	server      *http.Server
-	gate        chan struct{}
+	mu              sync.RWMutex
+	config          routerWebConfig
+	api             string
+	token           string
+	device          string
+	host            string
+	state           string
+	checkedAt       time.Time
+	proxy           *httputil.ReverseProxy
+	client          *http.Client
+	probeLookup     func(context.Context, string) ([]net.IPAddr, error)
+	probeDial       func(context.Context, string, string) (net.Conn, error)
+	probeRoots      *x509.CertPool
+	server          *http.Server
+	gate            chan struct{}
+	credentialProof string
 }
 
 func (a *agent) startRouterWeb(ctx context.Context) error {
@@ -65,7 +75,8 @@ func (a *agent) startRouterWeb(ctx context.Context) error {
 	if err = json.NewDecoder(io.LimitReader(f, 64<<10)).Decode(&config); err != nil {
 		return err
 	}
-	w := &routerWeb{config: config, api: a.apiURL, token: a.deviceToken, client: a.httpClient, gate: make(chan struct{}, 16), state: "disabled"}
+	w := &routerWeb{config: config, api: a.apiURL, token: a.deviceToken, client: a.httpClient,
+		gate: make(chan struct{}, 16), state: "disabled", credentialProof: directRouterCredentialProof}
 	a.routerWeb = w
 	if !config.Enabled {
 		return nil
@@ -294,7 +305,28 @@ func (w *routerWeb) call(ctx context.Context, path string, input, output any) in
 	return response.StatusCode
 }
 
-func (a *agent) syncRouterWeb(ctx context.Context) {
+func (a *agent) suspendRouterWeb(ctx context.Context, state string) {
+	w := a.routerWeb
+	if w == nil {
+		return
+	}
+	w.mu.Lock()
+	previous := w.proxy
+	w.host, w.proxy, w.state = "", nil, state
+	w.mu.Unlock()
+	if previous != nil {
+		if transport, ok := previous.Transport.(*http.Transport); ok {
+			transport.CloseIdleConnections()
+		}
+	}
+	if w.client != nil {
+		check, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		w.call(check, "/v1/agent/router-web", map[string]any{"enabled": false, "protocol_version": 2}, nil)
+	}
+}
+
+func (a *agent) syncRouterWeb(ctx context.Context, covered bool) {
 	w := a.routerWeb
 	if w == nil {
 		return
@@ -304,10 +336,16 @@ func (a *agent) syncRouterWeb(ctx context.Context) {
 	w.mu.Unlock()
 	ctx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
-	enabled := w.config.Enabled && w.server != nil
 	w.mu.RLock()
 	previous := w.proxy
 	w.mu.RUnlock()
+	enabled := w.config.Enabled && w.server != nil && covered
+	if w.config.Enabled && w.server != nil && !covered {
+		w.mu.Lock()
+		w.state = "relay_capacity_insufficient"
+		w.host, w.proxy = "", nil
+		w.mu.Unlock()
+	}
 	var proxy *httputil.ReverseProxy
 	defer func() {
 		if previous != nil {
@@ -338,20 +376,20 @@ func (a *agent) syncRouterWeb(ctx context.Context) {
 		Hostname string `json:"hostname"`
 		Enabled  bool   `json:"enabled"`
 	}
-	status := w.call(ctx, "/v1/agent/router-web", map[string]bool{"enabled": enabled}, &result)
+	status := w.call(ctx, "/v1/agent/router-web", map[string]any{"enabled": enabled, "protocol_version": 2}, &result)
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.host = ""
 	w.proxy = nil
 	if status != 200 {
-		w.state = map[int]string{402: "plan_required", 409: "domain_quota_exceeded", 404: "server_not_ready", 403: "disabled"}[status]
+		w.state = map[int]string{402: "plan_required", 409: "domain_quota_exceeded", 404: "server_not_ready", 403: "disabled", 426: "agent_upgrade_required"}[status]
 		if w.state == "" {
 			w.state = "verification_unavailable"
 		}
 		return
 	}
 	if !enabled {
-		if w.state != "target_unavailable" && w.state != "port_in_use" {
+		if w.state != "target_unavailable" && w.state != "port_in_use" && w.state != "relay_capacity_insufficient" {
 			w.state = "disabled"
 		}
 		return
@@ -381,7 +419,11 @@ func validRouterHost(host string) bool {
 func (w *routerWeb) status() *routerWebStatus {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
-	return &routerWebStatus{Hostname: w.host, State: w.state}
+	status := &routerWebStatus{Hostname: w.host, State: w.state}
+	if (w.state == "ready" || w.state == "public_unavailable") && !w.checkedAt.IsZero() {
+		status.CheckedAt = w.checkedAt.Format(time.RFC3339Nano)
+	}
+	return status
 }
 
 // Readiness requires a round-trip through the exact public HTTPS hostname.
@@ -390,35 +432,108 @@ func (w *routerWeb) checkPublic(ctx context.Context) {
 	w.mu.RLock()
 	host, state := w.host, w.state
 	w.mu.RUnlock()
-	if host == "" || state != "assigned" {
+	if host == "" || (state != "assigned" && state != "ready" && state != "public_unavailable") {
 		return
 	}
-	client := w.probeClient
-	if client == nil {
-		client = &http.Client{Transport: &http.Transport{Proxy: nil, DisableKeepAlives: true, TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}}, Timeout: 3 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	ctx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+	lookup := w.probeLookup
+	if lookup == nil {
+		lookup = net.DefaultResolver.LookupIPAddr
+	}
+	resolved, err := lookup(ctx, host)
+	addresses := []string{}
+	seen := map[string]bool{}
+	valid := err == nil && len(resolved) > 0
+	for _, item := range resolved {
+		if item.IP.To16() == nil || item.IP.IsUnspecified() || item.IP.IsMulticast() || item.Zone != "" {
+			valid = false
+			break
+		}
+		address := item.IP.String()
+		if !seen[address] {
+			seen[address] = true
+			addresses = append(addresses, address)
+		}
+	}
+	valid = valid && len(addresses) > 0 && len(addresses) <= 16
+	if valid {
+		results := make(chan bool, len(addresses))
+		active := make(chan struct{}, 2)
+		for _, address := range addresses {
+			go func(address string) {
+				select {
+				case active <- struct{}{}:
+					defer func() { <-active }()
+					results <- w.probeAddress(ctx, host, address)
+				case <-ctx.Done():
+					results <- false
+				}
+			}(address)
+		}
+		for range addresses {
+			if !<-results {
+				valid = false
+				cancel()
+			}
+		}
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.host == host && (w.state == "assigned" || w.state == "ready" || w.state == "public_unavailable") {
+		w.checkedAt = time.Now().UTC()
+		w.state = "public_unavailable"
+		if valid {
+			w.state = "ready"
+		}
+	}
+}
+
+func (w *routerWeb) probeAddress(ctx context.Context, host, address string) bool {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	dial := w.probeDial
+	if dial == nil {
+		dial = (&net.Dialer{Timeout: 3 * time.Second}).DialContext
+	}
+	connection, err := dial(ctx, "tcp", net.JoinHostPort(address, "443"))
+	if err != nil {
+		return false
+	}
+	defer connection.Close()
+	stop := context.AfterFunc(ctx, func() { _ = connection.Close() })
+	defer stop()
+	deadline, _ := ctx.Deadline()
+	if connection.SetDeadline(deadline) != nil {
+		return false
+	}
+	secure := tls.Client(connection, &tls.Config{MinVersion: tls.VersionTLS12, ServerName: host,
+		RootCAs: w.probeRoots, NextProtos: []string{"http/1.1"}})
+	if secure.HandshakeContext(ctx) != nil {
+		return false
 	}
 	random := make([]byte, 16)
 	if _, err := rand.Read(random); err != nil {
-		return
+		return false
 	}
 	nonce := hex.EncodeToString(random)
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+host+"/_51ddns/health", nil)
 	if err != nil {
-		return
+		return false
 	}
 	request.Header.Set("X-51DDNS-Probe", nonce)
-	response, err := client.Do(request)
+	request.Close = true
+	if request.Write(secure) != nil {
+		return false
+	}
+	// One bounded HTTP/1.1 exchange avoids a Transport background dial
+	// surviving cancellation after a concurrency slot has been released.
+	response, err := http.ReadResponse(bufio.NewReader(io.LimitReader(secure, 32<<10)), request)
 	if err != nil {
-		return
+		return false
 	}
 	defer response.Body.Close()
-	if response.StatusCode == 204 && response.Header.Get("X-51DDNS-Router-Probe") == nonce {
-		w.mu.Lock()
-		if w.host == host && w.state == "assigned" {
-			w.state = "ready"
-		}
-		w.mu.Unlock()
-	}
+	return response.StatusCode == 204 && response.Header.Get("X-51DDNS-Router-Probe") == nonce
 }
 
 func (w *routerWeb) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -455,6 +570,10 @@ func (w *routerWeb) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 		rw.Header().Set("X-51DDNS-Router-Probe", nonce)
 		rw.WriteHeader(204)
+		return
+	}
+	if host == w.config.DirectHostname && validRouterHost(host) && routerCredentialReady(w.credentialProof, time.Now()) {
+		w.serveDirectRouterWeb(rw, r, host, proxy)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
@@ -510,14 +629,7 @@ func (w *routerWeb) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	request := r.Clone(r.Context())
-	request.Header = request.Header.Clone()
-	request.Header.Del("Cookie")
-	for _, c := range r.Cookies() {
-		if c.Name != routerCookie {
-			request.AddCookie(c)
-		}
-	}
+	request := routerWebProxyRequest(r)
 	// Access grant and account credentials never reach uhttpd. Router credentials do.
 	sessionContext, stop := context.WithDeadline(request.Context(), time.Unix(checked.Expires, 0))
 	defer stop()
@@ -525,6 +637,200 @@ func (w *routerWeb) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// the rest of its 15-minute lifetime. Short requests finish before the first tick.
 	go w.watchSession(sessionContext, stop, host, cookie.Value)
 	proxy.ServeHTTP(rw, request.WithContext(sessionContext))
+}
+
+func routerCredentialCheckedAt(proof string) time.Time {
+	info, err := os.Lstat(proof)
+	if err != nil || !info.Mode().IsRegular() {
+		return time.Time{}
+	}
+	return info.ModTime()
+}
+
+func routerCredentialReady(proof string, now time.Time) bool {
+	age := now.Sub(routerCredentialCheckedAt(proof))
+	return age >= 0 && age < 15*time.Second
+}
+
+func (w *routerWeb) serveDirectRouterWeb(rw http.ResponseWriter, r *http.Request, host string, proxy *httputil.ReverseProxy) {
+	p := r.URL.Path
+	read := r.Method == http.MethodGet || r.Method == http.MethodHead
+	landing := p == "/" || p == "/cgi-bin/luci" || p == "/cgi-bin/luci/"
+	origin := r.Header.Get("Origin")
+	site := r.Header.Get("Sec-Fetch-Site")
+	crossSite := site == "cross-site" || site == "same-site"
+	// A link from the LAN wizard is a cross-site navigation. Expose only
+	// the native login landing to that navigation, without existing cookies.
+	safeLanding := landing && r.Method == http.MethodGet && r.URL.RawQuery == "" && origin == "" &&
+		r.Header.Get("Sec-Fetch-Mode") == "navigate" && r.Header.Get("Sec-Fetch-Dest") == "document"
+	if (crossSite && !safeLanding) || (origin != "" && origin != "https://"+host) || (!read && origin != "https://"+host) {
+		http.Error(rw, "跨站访问已拒绝", http.StatusForbidden)
+		return
+	}
+	if read && (r.ContentLength != 0 || len(r.TransferEncoding) != 0) {
+		http.Error(rw, "无效的管理请求", http.StatusBadRequest)
+		return
+	}
+	if p == "/" && read {
+		http.Redirect(rw, r, "/cgi-bin/luci/", http.StatusFound)
+		return
+	}
+	query, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil || query.Has("luci_username") || query.Has("luci_password") {
+		http.Error(rw, "登录凭据必须通过表单提交", http.StatusBadRequest)
+		return
+	}
+	// Only LuCI and its assets/helpers belong to this entry. In particular,
+	// the raw uhttpd /ubus handler is not exposed; LuCI has its own RPC path.
+	luci := p == "/cgi-bin/luci" || strings.HasPrefix(p, "/cgi-bin/luci/")
+	asset := read && strings.HasPrefix(p, "/luci-static/")
+	switch p {
+	case "/cgi-bin/cgi-backup", "/cgi-bin/cgi-download", "/cgi-bin/cgi-exec", "/cgi-bin/cgi-upload":
+		luci = r.Method == http.MethodPost
+	}
+	clean := path.Clean(p)
+	if (p != clean && p != clean+"/") || strings.ContainsAny(p, "\\%\x00") ||
+		(!luci && !asset) || (!read && r.Method != http.MethodPost) {
+		http.NotFound(rw, r)
+		return
+	}
+	request := routerWebProxyRequest(r)
+	request.Header.Del("Authorization")
+	request.Header.Del("Auth-User")
+	request.Header.Del("Auth-Pass")
+	request.Header.Del("Http-Auth-User")
+	request.Header.Del("Http-Auth-Pass")
+	if crossSite {
+		request.Header.Del("Cookie")
+		request.Header.Del("Referer")
+	}
+	const rpc = "/cgi-bin/luci/admin/ubus"
+	if p == rpc || strings.HasPrefix(p, rpc+"/") {
+		if r.Method != http.MethodPost || !checkDirectRouterRPC(rw, request) {
+			http.Error(rw, "路由器 RPC 请求不允许", http.StatusForbidden)
+			return
+		}
+	}
+	direct := *proxy
+	direct.ModifyResponse = func(res *http.Response) error {
+		for _, cookie := range res.Cookies() {
+			if (cookie.Name == "sysauth" || strings.HasPrefix(cookie.Name, "sysauth_")) && cookie.Value != "" &&
+				!w.confirmNativeLogin(res.Request.Context()) {
+				return errors.New("router password verification unavailable")
+			}
+		}
+		return proxy.ModifyResponse(res)
+	}
+	direct.ServeHTTP(rw, request)
+}
+
+// Stock LuCI accepts the anonymous ubus session.login call and returns its
+// session in JSON. Keep login on the native form, where issuance is checked.
+func checkDirectRouterRPC(rw http.ResponseWriter, r *http.Request) bool {
+	const maxRPCBody = 256 << 10
+	content, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || content != "application/json" {
+		return false
+	}
+	body := http.MaxBytesReader(rw, r.Body, maxRPCBody)
+	raw, err := io.ReadAll(body)
+	_ = body.Close()
+	raw = bytes.TrimSpace(raw)
+	if err != nil || len(raw) == 0 {
+		return false
+	}
+	var calls []map[string]json.RawMessage
+	batch := raw[0] == '['
+	if batch {
+		err = json.Unmarshal(raw, &calls)
+	} else {
+		calls = make([]map[string]json.RawMessage, 1)
+		err = json.Unmarshal(raw, &calls[0])
+	}
+	if err != nil || len(calls) == 0 {
+		return false
+	}
+	for _, call := range calls {
+		if call == nil {
+			return false
+		}
+		for key := range call {
+			if strings.ContainsRune(key, 0) {
+				return false
+			}
+		}
+		var method, object, operation string
+		if json.Unmarshal(call["method"], &method) != nil || strings.ContainsRune(method, 0) {
+			return false
+		}
+		if method != "call" {
+			continue
+		}
+		var params []json.RawMessage
+		if json.Unmarshal(call["params"], &params) != nil || len(params) != 4 ||
+			json.Unmarshal(params[1], &object) != nil || json.Unmarshal(params[2], &operation) != nil ||
+			strings.ContainsRune(object, 0) || strings.ContainsRune(operation, 0) {
+			return false
+		}
+		if object == "session" && operation == "login" {
+			return false
+		}
+	}
+	// Forward the same interpretation that was checked, even if the client
+	// supplied duplicate object keys or alternate JSON string escapes.
+	if batch {
+		raw, err = json.Marshal(calls)
+	} else {
+		raw, err = json.Marshal(calls[0])
+	}
+	if err != nil || len(raw) > maxRPCBody {
+		return false
+	}
+	r.Body = io.NopCloser(bytes.NewReader(raw))
+	r.GetBody = nil
+	r.ContentLength = int64(len(raw))
+	r.TransferEncoding = nil
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Del("Content-Length")
+	return true
+}
+
+// LuCI may accept any password when its local root password is removed. Before
+// returning a new native session, require a privileged check started after
+// LuCI responded. A previously fresh proof is insufficient for this response.
+func (w *routerWeb) confirmNativeLogin(ctx context.Context) bool {
+	issued := time.Now()
+	deadline := time.NewTimer(7 * time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-deadline.C:
+			return false
+		case now := <-ticker.C:
+			checked := routerCredentialCheckedAt(w.credentialProof)
+			if checked.IsZero() {
+				return false
+			}
+			if checked.After(issued) && !checked.After(now) {
+				return true
+			}
+		}
+	}
+}
+
+func routerWebProxyRequest(r *http.Request) *http.Request {
+	request := r.Clone(r.Context())
+	request.Header.Del("Cookie")
+	for _, c := range r.Cookies() {
+		if c.Name != routerCookie {
+			request.AddCookie(c)
+		}
+	}
+	return request
 }
 
 func (w *routerWeb) watchSession(ctx context.Context, cancel context.CancelFunc, host, session string) {

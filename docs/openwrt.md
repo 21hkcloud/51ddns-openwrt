@@ -17,35 +17,15 @@ The LuCI package is maintained and reviewed separately in the official
 
 ### OpenWrt 24.10 and iStore
 
-OpenWrt 24.10's official frpc 0.51.3 cannot read the TOML configuration used
-by the agent. Agent 0.6.4-r2 requires frpc 0.52.0 or later. Before installing
-through iStore on 24.10, add the signed 51DDNS feed that supplies a compatible
-frpc. The current 24.10.8 feed provides Agent 0.6.4-r2 and frpc 0.70.0-r3 for
-x86_64, aarch64_cortex-a53 and mipsel_24kc.
+The Agent requires feed-provided frpc 0.51.3 or later. It generates INI for
+frpc 0.51.3 and TOML for newer supported releases. Use a configured feed that
+supplies a compatible frpc for your router. Check the installed versions
+before entering an account token.
 
-The official installer below verifies the pinned public key, adds the signed
-feed, refreshes opkg and installs Agent and LuCI. Afterwards iStore shows the
-installed application. Run it on the router as root after checking that the
-router has Internet access and runs OpenWrt 24.10.x:
-
-中文说明：OpenWrt 24.10 自带的旧版 frpc 不兼容。先在路由器 SSH 中以 root
-运行以下官方脚本；脚本会校验公钥、添加签名源，并同时安装 51DDNS 和 LuCI。
-安装完成后再到 iStore 查看应用，无需强制忽略依赖。
-
-```sh
-uclient-fetch -q -O /tmp/51ddns-repository.sh \
-  https://www.51ddns.com/downloads/openwrt/install-repository.sh
-sh /tmp/51ddns-repository.sh
-```
-
-Check the installed versions before entering an account token:
-
-```sh
-opkg list-installed | grep -E '^(51ddns-agent|frpc|luci-app-51ddns) '
-```
-
-Do not force dependencies or install an APK on an IPK-based system. If the
-signed feed is unavailable, wait for it rather than installing the old frpc.
+iStore accepts x86_64 and ARM64 packages. The IPK ARM64 architecture is
+`aarch64_cortex-a53`, and the APK ARM64 architecture is `aarch64_generic`.
+Check the [51DDNS OpenWrt guide](https://www.51ddns.com/openwrt) for supported
+devices and the separately maintained 51DDNS feed.
 
 ## Install
 
@@ -66,11 +46,13 @@ The LuCI package is optional. The agent can be configured entirely with UCI.
 
 ## Configure with LuCI
 
-Open **Services -> 51DDNS Remote Access**, paste the account token, enable the
-service, and select **Save & Apply**. The page shows the local agent process
-state, agent version, current plan, expiry information and a link to the 51DDNS
-console. A running process alone does not prove that the router has connected to
-the control plane; confirm that the device appears in the console.
+Open **Services → 51DDNS Remote Access** and select **Start setup** to connect
+the router. The page shows the agent state, current plan, expiry and console
+links. Confirm that the device appears online in the 51DDNS console.
+
+Use an HTTPS LuCI session to enter a token manually in the advanced page or
+select **Show account token** in the main page. The main page hides the saved
+token until you request it.
 
 ## Configure with UCI
 

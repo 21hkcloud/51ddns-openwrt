@@ -199,3 +199,357 @@ msgstr ""
 
 msgid "Leave blank to detect uhttpd. Only an IP on this router is accepted; HTTPS uses its configured public certificate."
 msgstr ""
+
+msgid "Setup guide"
+msgstr ""
+
+msgid "Router setup steps"
+msgstr ""
+
+msgid "Register / sign in"
+msgstr ""
+
+msgid "Bind this device"
+msgstr ""
+
+msgid "Configure a domain"
+msgstr ""
+
+msgid "Test access"
+msgstr ""
+
+msgid "The account token was accepted by the device."
+msgstr ""
+
+msgid "Token saved. Waiting for a fresh device report to verify it."
+msgstr ""
+
+msgid "Register or sign in to the console, then copy your account token here."
+msgstr ""
+
+msgid "Device identity is bound and saved."
+msgstr ""
+
+msgid "For an existing device, enter its exact console UUID. Leave it blank only for a new router with an available device slot."
+msgstr ""
+
+msgid "Enable the management address below and save to request a domain. It is off by default."
+msgstr ""
+
+msgid "The management domain is ready."
+msgstr ""
+
+msgid "An active plan with domain quota is required. Review plans in the console; nothing is purchased automatically."
+msgstr ""
+
+msgid "Domain assigned; waiting for the secure tunnel to become ready."
+msgstr ""
+
+msgid "Domain setup is pending. Check the device status and local Web address below."
+msgstr ""
+
+msgid "Open the address and confirm that the router sign-in page loads."
+msgstr ""
+
+msgid "The access test becomes available after the domain and tunnel are ready."
+msgstr ""
+
+msgid "Review plans"
+msgstr ""
+
+msgid "Open router sign-in page"
+msgstr ""
+
+msgid "Bind device"
+msgstr ""
+
+msgid "Write token"
+msgstr ""
+
+msgid "Configure domain"
+msgstr ""
+
+msgid "Check the email and password and try again."
+msgstr ""
+
+msgid "This email is already registered. Continue to sign in."
+msgstr ""
+
+msgid "The invitation code is invalid or expired."
+msgstr ""
+
+msgid "Too many attempts. Wait before trying again."
+msgstr ""
+
+msgid "Your setup session expired. Sign in again to continue."
+msgstr ""
+
+msgid "No device slots are available on this account."
+msgstr ""
+
+msgid "This account has reached its device limit."
+msgstr ""
+
+msgid "This device is unavailable for the signed-in account."
+msgstr ""
+
+msgid "The requested device differs from the identity saved on this router."
+msgstr ""
+
+msgid "This device is already associated with another installation."
+msgstr ""
+
+msgid "Apply or revert pending 51DDNS settings before continuing."
+msgstr ""
+
+msgid "Another 51DDNS setup operation is in progress. Try again shortly."
+msgstr ""
+
+msgid "The router could not reach 51DDNS securely. Try again shortly."
+msgstr ""
+
+msgid "The 51DDNS service is unavailable. Try again shortly."
+msgstr ""
+
+msgid "This router uses a custom control server. Setup requires the configured 51DDNS service."
+msgstr ""
+
+msgid "Wait until this device reports online before continuing."
+msgstr ""
+
+msgid "The router could not save the settings."
+msgstr ""
+
+msgid "The 51DDNS Agent could not apply the settings."
+msgstr ""
+
+msgid "The domain is assigned. Waiting for the public tunnel."
+msgstr ""
+
+msgid "Router management is currently disabled on the server."
+msgstr ""
+
+msgid "An active plan is required to configure a management domain."
+msgstr ""
+
+msgid "No management domain quota is available on the current plan."
+msgstr ""
+
+msgid "The router cannot connect to all required relay nodes."
+msgstr ""
+
+msgid "At least one public address failed the HTTPS check."
+msgstr ""
+
+msgid "The router web service could not be reached."
+msgstr ""
+
+msgid "The local management proxy port is in use."
+msgstr ""
+
+msgid "This management domain is disabled."
+msgstr ""
+
+msgid "Update the 51DDNS Agent to continue."
+msgstr ""
+
+msgid "The management domain could not be verified."
+msgstr ""
+
+msgid "Setup could not continue. Please try again."
+msgstr ""
+
+msgid "Already registered? Sign in"
+msgstr ""
+
+msgid "Create an account"
+msgstr ""
+
+msgid "Open this router page using HTTPS to enter your account details."
+msgstr ""
+
+msgid "Email address"
+msgstr ""
+
+msgid "Password"
+msgstr ""
+
+msgid "Invitation code (optional)"
+msgstr ""
+
+msgid "The public HTTPS test failed. Try again after the tunnel recovers."
+msgstr ""
+
+msgid "Could not read the router status. Retrying."
+msgstr ""
+
+msgid "Timed out waiting for a new public HTTPS test. Try again."
+msgstr ""
+
+msgid "Could not read the router status. Try again."
+msgstr ""
+
+msgid "Bind this router to your account. Leave the device ID blank to register a new device."
+msgstr ""
+
+msgid "Enter a valid device ID."
+msgstr ""
+
+msgid "Token saved. Waiting for this router to report online."
+msgstr ""
+
+msgid "Write the token securely to this router and start the 51DDNS Agent."
+msgstr ""
+
+msgid "Refresh status"
+msgstr ""
+
+msgid "Enable a protected router management address using one domain from this device plan."
+msgstr ""
+
+msgid "Waiting for the management domain."
+msgstr ""
+
+msgid "Management address"
+msgstr ""
+
+msgid "Public HTTPS access test passed."
+msgstr ""
+
+msgid "Waiting for a new public HTTPS test from the router."
+msgstr ""
+
+msgid "Test the management address through all published relay addresses."
+msgstr ""
+
+msgid "Finish setup"
+msgstr ""
+
+msgid "Setup complete. Public HTTPS access was verified."
+msgstr ""
+
+msgid "Start again"
+msgstr ""
+
+msgid "Server connection"
+msgstr ""
+
+msgid "Online"
+msgstr ""
+
+msgid "Offline"
+msgstr ""
+
+msgid "Device ID"
+msgstr ""
+
+msgid "Runtime status"
+msgstr ""
+
+msgid "Not configured"
+msgstr ""
+
+msgid "Offline diagnosis"
+msgstr ""
+
+msgid "Export diagnostics"
+msgstr ""
+
+msgid "The agent is stopped. Check the token and service switch below."
+msgstr ""
+
+msgid "The agent is running without a recent online report. Check the account binding and network connection."
+msgstr ""
+
+msgid "The agent is online."
+msgstr ""
+
+msgid "Settings saved and applied."
+msgstr ""
+
+msgid "Could not apply settings. Refresh the status and try again."
+msgstr ""
+
+msgid "Basic settings"
+msgstr ""
+
+msgid "Advanced features"
+msgstr ""
+
+msgid "Enable 51DDNS"
+msgstr ""
+
+msgid "The setup wizard writes the token directly to the router."
+msgstr ""
+
+msgid "Leave the local address blank to detect it automatically."
+msgstr ""
+
+msgid "Working…"
+msgstr ""
+
+msgid "Save and apply settings"
+msgstr ""
+
+msgid "Welcome to 51DDNS"
+msgstr ""
+
+msgid "Current plan"
+msgstr ""
+
+msgid "Plan"
+msgstr ""
+
+msgid "Expired"
+msgstr ""
+
+msgid "Last synced"
+msgstr ""
+
+msgid "Official plan specifications"
+msgstr ""
+
+msgid "See the console for plan specifications."
+msgstr ""
+
+msgid "Plan information is temporarily unavailable."
+msgstr ""
+
+msgid "Renewal support"
+msgstr ""
+
+msgid "Upgrade in the console"
+msgstr ""
+
+msgid "Set up your account, router and management domain here."
+msgstr ""
+
+msgid "Start setup"
+msgstr ""
+
+msgid "Setup steps"
+msgstr ""
+
+msgid "Setup complete"
+msgstr ""
+
+msgid "Remote management"
+msgstr ""
+
+msgid "Enabled"
+msgstr ""
+
+msgid "Disabled"
+msgstr ""
+
+msgid "Device"
+msgstr ""
+
+msgid "Hidden"
+msgstr ""
+
+msgid "Show account token"
+msgstr ""
+
+msgid "Hide account token"
+msgstr ""

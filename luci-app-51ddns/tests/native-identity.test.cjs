@@ -12,6 +12,34 @@ const shell = process.env.DDNS_TEST_SH || (process.platform === 'win32' ? 'C:/Pr
 const firstID = '00000000-0000-4000-8000-000000000001';
 const secondID = '00000000-0000-4000-8000-000000000002';
 
+test('RPC preserves only reviewed router coverage states', () => {
+	const start = rpc.indexOf('\tcase "$status_router_state" in');
+	const end = rpc.indexOf('\n\tesac', start) + '\n\tesac'.length;
+	assert.ok(start >= 0 && end > start);
+	for (const state of ['ready', 'relay_capacity_insufficient', 'public_unavailable', 'agent_upgrade_required', 'private-error-value', 'ready\nprivate-data']) {
+		const script = 'status_router_state="$DDNS_STATE"\njson_add_string() { printf "%s" "$2"; }\n' + rpc.slice(start, end);
+		const result = spawnSync(shell, ['-c', script], { encoding: 'utf8', env: { ...process.env, DDNS_STATE: state } });
+		assert.equal(result.status, 0, result.stderr);
+		assert.equal(result.stdout, ['ready', 'relay_capacity_insufficient', 'public_unavailable', 'agent_upgrade_required'].includes(state) ? state : 'unavailable');
+	}
+});
+
+test('MIPS automatic relay capacity follows opt-in and never rewrites explicit limits', () => {
+	const text = fs.readFileSync(init, 'utf8');
+	const block = text.slice(text.indexOf("\tgo_memory_limit='128MiB'"), text.indexOf('\n\tmkdir -p "$SECRET_DIR"', text.indexOf("\tgo_memory_limit='128MiB'")));
+	assert.match(block, /max_active_relays=2/);
+	for (const [arch, raw, optIn, expected] of [
+		['mips', 0, 0, 1], ['mipsel', 0, 1, 2], ['mips64', 1, 1, 1],
+		['mipsel', 2, 1, 2], ['mipsel', 3, 1, 3], ['x86_64', 0, 1, 0], ['aarch64', 0, 1, 0],
+	]) {
+		const script = `set -e\nuname() { printf '%s' '${arch}'; }\nuci() { printf '%s' '${optIn}'; }\nmax_active_relays=${raw}\n` + block + '\nprintf "%s" "$max_active_relays"\n';
+		const result = spawnSync(shell, ['-c', script], { encoding: 'utf8' });
+		assert.equal(result.status, 0, result.stderr);
+		assert.equal(result.stdout, String(expected), `${arch}/${raw}/${optIn}`);
+	}
+	assert.doesNotMatch(block, /uci\s+(?:set|commit)/);
+});
+
 test('RPC emits only fixed activation and relay error categories', () => {
 	const start = rpc.indexOf('\tcase "$status_error_code" in');
 	const end = rpc.indexOf('\n\tjson_dump', start);
@@ -252,7 +280,7 @@ test('a running automatic-registration process must be stopped before assigning 
 });
 
 test('RPC exposes only a valid saved UUID and an explicit identity state', t => {
-	const functionSource = rpc.slice(rpc.indexOf('read_device_identity()'), rpc.indexOf('\nprint_status()'));
+	const functionSource = rpc.slice(rpc.indexOf('valid_device_id()'), rpc.indexOf('\nprint_status()'));
 	for (const [content, expected] of [
 		[undefined, 'empty|'], ['', 'empty|'],
 		[firstID + '\n', 'saved|' + firstID], ['not-an-identity', 'unavailable|'],

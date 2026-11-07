@@ -10,6 +10,7 @@ SERVICE_USER="ddns51"
 SERVICE_GROUP="ddns51"
 RUNTIME_DIR="/var/lib/51ddns"
 SECRET_DIR="/etc/51ddns"
+ROUTER_CREDENTIAL_DIR="/var/run/51ddns-router-credential"
 
 check_device_identity() {
 	local requested="$1" saved
@@ -173,13 +174,17 @@ write_identity_files() {
 
 write_router_web_config() (
 	. /usr/share/libubox/jshn.sh
-	local enabled target cert address stage
+	local enabled target direct_host cert address stage
 	enabled="$(uci -q get 51ddns.main.router_web)"
 	target="$(uci -q get 51ddns.main.router_web_target)"
 	cert="$(uci -q get uhttpd.main.cert)"
 	json_init
 	[ "$enabled" = 1 ] && json_add_boolean enabled 1 || json_add_boolean enabled 0
 	json_add_string target "$target"
+	direct_host="$(uci -q get 51ddns.main.router_web_direct_hostname)"
+	if [ "$enabled" = 1 ] && [ -n "$direct_host" ]; then
+		json_add_string direct_hostname "$direct_host"
+	fi
 	json_add_array http
 	for address in $(uci -q get uhttpd.main.listen_http); do json_add_string '' "$address"; done
 	json_close_array
@@ -246,7 +251,12 @@ start_service() {
 	go_memory_limit='128MiB'
 	case "$(uname -m 2> /dev/null)" in
 	mips*)
-		[ "$max_active_relays" -gt 0 ] || max_active_relays=1
+		if [ "$max_active_relays" -eq 0 ]; then
+			max_active_relays=1
+			if [ "$(uci -q get 51ddns.main.router_web)" = 1 ]; then
+				max_active_relays=2
+			fi
+		fi
 		go_memory_limit='48MiB'
 		;;
 	esac
@@ -257,6 +267,13 @@ start_service() {
 	umask 077
 	write_identity_files || return 1
 	write_router_web_config || return 1
+	local direct_enabled=0
+	if [ "$(uci -q get 51ddns.main.router_web)" = 1 ] &&
+		[ -n "$(uci -q get 51ddns.main.router_web_direct_hostname)" ] &&
+		[ ! -L "$ROUTER_CREDENTIAL_DIR" ] && mkdir -p "$ROUTER_CREDENTIAL_DIR" &&
+		chown root:root "$ROUTER_CREDENTIAL_DIR" && chmod 0755 "$ROUTER_CREDENTIAL_DIR"; then
+		direct_enabled=1
+	fi
 
 	procd_open_instance 51ddns-agent
 	procd_set_param command /usr/libexec/51ddns-agent-start \
@@ -293,6 +310,7 @@ start_service() {
 	procd_add_jail_mount /usr/bin/51ddns-agent
 	procd_add_jail_mount /usr/bin/frpc
 	procd_add_jail_mount /usr/bin/logger
+	[ "$direct_enabled" = 0 ] || procd_add_jail_mount "$ROUTER_CREDENTIAL_DIR"
 	procd_add_jail_mount_rw "$SECRET_DIR"
 	procd_add_jail_mount_rw "$RUNTIME_DIR"
 	procd_close_instance

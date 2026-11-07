@@ -5,6 +5,15 @@ const test = require('node:test');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'htdocs', 'luci-static', 'resources', 'view', '51ddns', 'overview.js'), 'utf8');
 
+test('relay capacity and partial public coverage never expose an access link', () => {
+	for (const state of ['relay_capacity_insufficient', 'public_unavailable', 'agent_upgrade_required']) {
+		const options = renderOptions({ router_web: { state, hostname: 'router-12345678901234567890123456789012.cdn.cloud.toddns.com' }, updated_at: new Date().toISOString() }, true, { router_web: '1' });
+		const widget = options.find(option => option.id === '_router_web').renderWidget();
+		assert.doesNotMatch(JSON.stringify(widget), /"href":"https:\/\/router-/);
+		assert.match(JSON.stringify(widget), state === 'relay_capacity_insufficient' ? /relay limit/ : state === 'public_unavailable' ? /published access addresses/ : /Upgrade the agent/);
+	}
+});
+
 function renderOptions(local, running = true, config = {}) {
 	const options = [];
 	const removed = [];
@@ -27,7 +36,7 @@ function renderOptions(local, running = true, config = {}) {
 	const form = { Map, NamedSection: class {}, DummyValue: class {}, Button: class {}, Flag: class {}, Value: class {} };
 	const page = new Function('view', 'form', 'rpc', 'uci', 'L', '_', 'N_', 'window', 'E', 'poll', 'dom', source)(
 		{ extend: value => value }, form, { declare: ({ method }) => () => options.rpc[method] instanceof Error ? Promise.reject(options.rpc[method]) : Promise.resolve(options.rpc[method] || {}) },
-		{ get: (_package, _section, name) => config[name], unset: (...args) => removed.push(args) }, {}, value => value, () => '', {}, (tag, attributes, children) => ({tag, attributes, children, isConnected: true}),
+		{ get: (_package, _section, name) => config[name], unset: (...args) => removed.push(args) }, {}, value => value, () => ({ format: () => '' }), {}, (tag, attributes, children) => ({tag, attributes, children, isConnected: true}),
  { add: (fn, interval) => polls.push({fn,interval}), remove: fn => removedPolls.push(fn) },
  { content: (node, children) => { node.children = children; } },
 	);
@@ -45,6 +54,22 @@ test('router entry is actionable only after fresh public readiness and a strict 
 		const links=widget.children.filter(c=>c.tag==='a');assert.equal(links.length,shown?1:0);
 		if(shown)assert.equal(links[0].attributes.href,'https://'+host);
 	}
+});
+
+test('manual settings retain their order and point back to the local setup view', () => {
+    const options = renderOptions({}, true);
+    const fields = options.map(option => option.id);
+    assert.ok(fields.indexOf('account_token') < fields.indexOf('device_id'));
+    assert.ok(fields.indexOf('device_id') < fields.indexOf('enabled'));
+    assert.ok(fields.indexOf('enabled') < fields.indexOf('router_web'));
+    assert.equal(options.find(option => option.id === 'router_web').default, '0');
+    assert.equal(options.find(option => option.id === '_wizard').inputtitle, 'Quick setup');
+
+    const menu = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'root', 'usr', 'share',
+        'luci', 'menu.d', 'luci-app-51ddns.json'), 'utf8'));
+    assert.equal(menu['admin/services/51ddns'].action.path, '51ddns/wizard');
+    assert.equal(menu['admin/services/51ddns/advanced'].action.path, '51ddns/overview');
+    assert.doesNotMatch(source, /console\.51ddns\.com/);
 });
 
 test('live readiness appears without reloading or changing unsaved form inputs', async () => {
@@ -98,13 +123,13 @@ test('an unmounted discarded render does not leave a permanent poll callback', a
  assert.equal(options.removedPolls.length, 1);
 });
 
-test('recent device quota renders red guidance and the real plans link', () => {
+test('recent device quota renders guidance without opening the website', () => {
 	const options = renderOptions({ error_code: 'device_quota_exceeded', updated_at: new Date().toISOString() });
 	const quota = options.find(option => option.id === '_quota');
 	assert.ok(quota);
 	assert.equal(quota.rawhtml, true);
 	assert.match(quota.cfgvalue(), /color:#b91c1c/);
-	assert.match(quota.cfgvalue(), /console\.51ddns\.com\/console#\/plans/);
+	assert.doesNotMatch(quota.cfgvalue(), /href=|console\.51ddns\.com/);
 	assert.match(quota.cfgvalue(), /already has a device record.*exact device ID.*Upgrade or purchase a plan only when adding another device/);
 	assert.doesNotMatch(quota.cfgvalue(), /delete/i);
 });

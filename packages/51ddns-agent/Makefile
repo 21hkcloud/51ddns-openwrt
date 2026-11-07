@@ -5,11 +5,12 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=51ddns-agent
 PKG_VERSION:=0.6.7
-PKG_RELEASE:=3
+PKG_RELEASE:=7
 
 PKG_SOURCE:=51ddns-openwrt-0.6.7.tar.gz
-PKG_SOURCE_URL:=https://github.com/21hkcloud/51ddns-openwrt/releases/download/v0.6.7-r3
-PKG_HASH:=f128bd1a163175a9a3590ea64909597c16f499ee14d08c76c2fd261a1489d595
+PKG_SOURCE_URL:=https://github.com/21hkcloud/51ddns-openwrt/releases/download/v0.6.7-r7
+# Final source archive digest must be frozen before any SDK package build.
+PKG_HASH:=6efaa1b8a56e741f93f135017a4b88cb6338c940612a5b7e5fd8e016319d5c60
 PKG_BUILD_DIR:=$(BUILD_DIR)/51ddns-openwrt-0.6.7
 
 PKG_MAINTAINER:=Jinshuan Wang <21hkcloud@gmail.com>
@@ -61,6 +62,7 @@ define Package/51ddns-agent/install
 	$(INSTALL_DIR) $(1)/usr/libexec
 	$(INSTALL_BIN) ./files/51ddns-agent-start $(1)/usr/libexec/51ddns-agent-start
 	$(INSTALL_BIN) ./files/51ddns-agent-retry $(1)/usr/libexec/51ddns-agent-retry
+	$(INSTALL_BIN) ./files/51ddns-router-credential $(1)/usr/libexec/51ddns-router-credential
 	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
 	$(INSTALL_DATA) ./files/51ddns-agent.upgrade $(1)/lib/upgrade/keep.d/51ddns-agent
 endef

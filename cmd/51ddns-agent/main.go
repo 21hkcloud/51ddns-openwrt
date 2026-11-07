@@ -437,32 +437,31 @@ func globalIPv6() string {
 	return ""
 }
 
-func (a *agent) fetch(ctx context.Context) ([]relayConfiguration, error) {
-	a.syncRouterWeb(ctx)
+func (a *agent) fetchConfiguration(ctx context.Context) (configuration, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, a.apiURL+"/v1/agent/config", nil)
 	if err != nil {
-		return nil, err
+		return configuration{}, err
 	}
 	a.authorizeRequest(request)
 	response, err := a.httpClient.Do(request)
 	if err != nil {
-		return nil, err
+		return configuration{}, err
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
-		return nil, fmt.Errorf("control plane returned HTTP %d", response.StatusCode)
+		return configuration{}, fmt.Errorf("control plane returned HTTP %d", response.StatusCode)
 	}
 	var result configuration
 	decoder := json.NewDecoder(io.LimitReader(response.Body, 2<<20))
 	if err := decoder.Decode(&result); err != nil {
-		return nil, err
+		return configuration{}, err
 	}
 	if len(result.RelayConfigs) == 0 && strings.TrimSpace(result.FRPCTOML) != "" {
 		result.RelayConfigs = []relayConfiguration{{RelayNode: "legacy", FRPCTOML: result.FRPCTOML}}
 	}
 	if len(result.RelayConfigs) == 0 || len(result.RelayConfigs) > 8 {
-		return nil, errors.New("control plane returned an invalid relay configuration count")
+		return configuration{}, errors.New("control plane returned an invalid relay configuration count")
 	}
 	seen := map[string]bool{}
 	for index := range result.RelayConfigs {
@@ -470,9 +469,45 @@ func (a *agent) fetch(ctx context.Context) ([]relayConfiguration, error) {
 		item.RelayNode = strings.TrimSpace(item.RelayNode)
 		item.ServerAddr = strings.TrimSpace(item.ServerAddr)
 		if !relayNamePattern.MatchString(item.RelayNode) || strings.TrimSpace(item.FRPCTOML) == "" || seen[item.RelayNode] {
-			return nil, errors.New("control plane returned an invalid relay configuration")
+			return configuration{}, errors.New("control plane returned an invalid relay configuration")
 		}
 		seen[item.RelayNode] = true
+	}
+	sort.Slice(result.RelayConfigs, func(i, j int) bool { return result.RelayConfigs[i].RelayNode < result.RelayConfigs[j].RelayNode })
+	return result, nil
+}
+
+func (a *agent) coversRelays(count int) bool {
+	return count > 0 && (a.maxActiveRelays == 0 || a.maxActiveRelays >= count)
+}
+
+func (a *agent) fetch(ctx context.Context) ([]relayConfiguration, error) {
+	result, err := a.fetchConfiguration(ctx)
+	if err != nil {
+		a.suspendRouterWeb(ctx, "verification_unavailable")
+		return nil, err
+	}
+	if a.routerWeb != nil {
+		covered := a.coversRelays(len(result.RelayConfigs))
+		a.syncRouterWeb(ctx, covered)
+		if a.routerWeb.config.Enabled {
+			// Refresh after the report so newly assigned routes are included, or
+			// revoked routes are excluded before any FRP process receives them.
+			result, err = a.fetchConfiguration(ctx)
+			if err != nil {
+				a.suspendRouterWeb(ctx, "verification_unavailable")
+				return nil, err
+			}
+			if covered && !a.coversRelays(len(result.RelayConfigs)) {
+				// A node may rejoin between the first configuration and report.
+				a.syncRouterWeb(ctx, false)
+				result, err = a.fetchConfiguration(ctx)
+				if err != nil {
+					a.suspendRouterWeb(ctx, "verification_unavailable")
+					return nil, err
+				}
+			}
+		}
 	}
 	if a.routerWeb != nil {
 		a.routerWeb.checkPublic(ctx)
@@ -480,7 +515,6 @@ func (a *agent) fetch(ctx context.Context) ([]relayConfiguration, error) {
 	if err := a.writeLocalStatus(localStatus{DeviceID: a.deviceID, Online: true, Plan: result.Plan, ErrorCode: a.relayErrorCode}); err != nil {
 		slog.Warn("write local status failed", "error", err)
 	}
-	sort.Slice(result.RelayConfigs, func(i, j int) bool { return result.RelayConfigs[i].RelayNode < result.RelayConfigs[j].RelayNode })
 	if a.maxActiveRelays > 0 && len(result.RelayConfigs) > a.maxActiveRelays {
 		result.RelayConfigs = result.RelayConfigs[:a.maxActiveRelays]
 		slog.Info("constrained relay mode enabled", "active_relays", len(result.RelayConfigs))

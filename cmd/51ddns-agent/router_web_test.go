@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"encoding/pem"
 	"io"
@@ -20,7 +19,7 @@ import (
 func TestRouterWebPublicReadiness(t *testing.T) {
 	var invalid atomic.Bool
 	w := &routerWeb{host: testRouterHost, state: "assigned", proxy: &httputil.ReverseProxy{}, gate: make(chan struct{}, 16)}
-	s := httptest.NewTLSServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	s := routerProbeServer(t, testRouterHost, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
 			t.Error("probe leaked credentials")
 		}
@@ -31,14 +30,13 @@ func TestRouterWebPublicReadiness(t *testing.T) {
 		w.ServeHTTP(rw, r)
 	}))
 	defer s.Close()
-	tr := s.Client().Transport.(*http.Transport).Clone()
-	tr.TLSClientConfig = tr.TLSClientConfig.Clone()
-	tr.TLSClientConfig.ServerName = "example.com"
-	tr.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+	w.probeRoots = probeRoots(s)
+	w.probeLookup = func(context.Context, string) ([]net.IPAddr, error) {
+		return []net.IPAddr{{IP: net.ParseIP("203.0.113.158")}}, nil
+	}
+	w.probeDial = func(ctx context.Context, network, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, network, s.Listener.Addr().String())
 	}
-	w.probeClient = &http.Client{Transport: tr, Timeout: time.Second}
-	defer tr.CloseIdleConnections()
 	w.checkPublic(context.Background())
 	if w.status().State != "ready" {
 		t.Fatal("valid HTTPS round-trip not ready")
@@ -48,12 +46,12 @@ func TestRouterWebPublicReadiness(t *testing.T) {
 	w.mu.Unlock()
 	invalid.Store(true)
 	w.checkPublic(context.Background())
-	if w.status().State != "assigned" {
+	if w.status().State != "public_unavailable" {
 		t.Fatal("missing nonce accepted")
 	}
-	w.probeClient = &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}, DialContext: tr.DialContext}, Timeout: time.Second}
+	w.probeRoots = nil
 	w.checkPublic(context.Background())
-	if w.status().State != "assigned" {
+	if w.status().State != "public_unavailable" {
 		t.Fatal("untrusted certificate accepted")
 	}
 }
